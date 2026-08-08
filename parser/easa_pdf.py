@@ -32,6 +32,7 @@ FLIGHT_ROW_PATTERN = re.compile(
 
 def parse_time(value):
     """Convert HH:MM text into a time object."""
+
     return datetime.strptime(
         value,
         "%H:%M",
@@ -65,7 +66,9 @@ def calculate_flight_minutes(
 
     duration = arrival - departure
 
-    return int(duration.total_seconds() / 60)
+    return int(
+        duration.total_seconds() / 60
+    )
 
 
 def parse_flight_row(line):
@@ -110,45 +113,117 @@ def parse_flight_row(line):
     )
 
 
-def parse_logbook(pdf_path):
-    """Parse all flight rows from a logbook PDF."""
+def parse_logbook(
+    pdf_path,
+    progress_callback=None,
+):
+    """
+    Parse all flight rows from a logbook PDF.
+
+    progress_callback is optional.
+
+    When supplied, it is called as:
+
+        progress_callback(percent, message)
+
+    Parsing progress runs from 0 to 100 percent
+    across the pages of the PDF.
+    """
 
     flights = []
 
-    print("Opening logbook...")
-
     with pdfplumber.open(pdf_path) as pdf:
-        total_pages = len(pdf.pages)
 
-        print(
-            f"Pages found: {total_pages}"
+        total_pages = len(
+            pdf.pages
         )
+
+        if total_pages == 0:
+
+            if progress_callback is not None:
+                progress_callback(
+                    100,
+                    "Logbook contains no pages",
+                )
+
+            return flights
+
+        # -------------------------------------------------
+        # INITIAL PROGRESS
+        # -------------------------------------------------
+
+        if progress_callback is not None:
+
+            progress_callback(
+                0,
+                (
+                    f"Parsing logbook "
+                    f"(0/{total_pages} pages)..."
+                ),
+            )
+
+        # -------------------------------------------------
+        # PROCESS PAGES
+        # -------------------------------------------------
 
         for page_number, page in enumerate(
             pdf.pages,
             start=1,
         ):
+
             text = page.extract_text()
 
             page_flights = 0
 
             if text:
+
                 for line in text.splitlines():
-                    flight = parse_flight_row(line)
+
+                    flight = parse_flight_row(
+                        line
+                    )
 
                     if flight is not None:
-                        flights.append(flight)
+
+                        flights.append(
+                            flight
+                        )
+
                         page_flights += 1
 
-            print(
-                f"Processing page "
-                f"{page_number}/{total_pages}... "
-                f"{page_flights} flights"
-            )
+            # ---------------------------------------------
+            # REPORT PAGE PROGRESS
+            # ---------------------------------------------
 
-    print(
-        f"\nParsing complete. "
-        f"Flights found: {len(flights)}"
-    )
+            if progress_callback is not None:
+
+                percent = int(
+                    page_number
+                    / total_pages
+                    * 100
+                )
+
+                progress_callback(
+                    percent,
+                    (
+                        "Parsing logbook "
+                        f"({page_number}/{total_pages} pages) "
+                        f"— {len(flights):,} flights found"
+                    ),
+                )
+
+    # -----------------------------------------------------
+    # COMPLETE
+    # -----------------------------------------------------
+
+    if progress_callback is not None:
+
+        progress_callback(
+            100,
+            (
+                "Logbook parsing complete — "
+                f"{len(flights):,} flights found"
+            ),
+        )
 
     return flights

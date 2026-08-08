@@ -33,6 +33,7 @@ def calculate_sector_speed(
 def calculate_all_sector_speeds(
     flights,
     flight_distances,
+    progress_callback=None,
 ):
     """
     Calculate average sector speed for every flight.
@@ -46,6 +47,10 @@ def calculate_all_sector_speeds(
         distance_km
         flight_minutes
         sector_speed_kmh
+
+    progress_callback is optional and receives:
+
+        progress_callback(percent, message)
     """
 
     results = []
@@ -59,21 +64,25 @@ def calculate_all_sector_speeds(
 
     total_flights = len(flights)
 
-    print(
-        "\nCalculating average sector speeds..."
-    )
+    if total_flights == 0:
+        return results
 
     for number, flight in enumerate(
         flights,
         start=1,
     ):
-        distance_km = distance_by_flight.get(
-            id(flight)
+
+        distance_km = (
+            distance_by_flight.get(
+                id(flight)
+            )
         )
 
-        sector_speed = calculate_sector_speed(
-            distance_km,
-            flight.flight_minutes,
+        sector_speed = (
+            calculate_sector_speed(
+                distance_km,
+                flight.flight_minutes,
+            )
         )
 
         results.append(
@@ -89,20 +98,25 @@ def calculate_all_sector_speeds(
             }
         )
 
-        if sector_speed is None:
-            speed_text = "N/A"
-        else:
-            speed_text = (
-                f"{sector_speed:.1f} km/h"
+        # -------------------------------------------------
+        # PROGRESS REPORTING
+        # -------------------------------------------------
+
+        if progress_callback is not None:
+
+            percent = int(
+                number
+                / total_flights
+                * 100
             )
 
-        print(
-            f"Processing speed "
-            f"{number}/{total_flights}... "
-            f"{flight.departure} → "
-            f"{flight.arrival} "
-            f"{speed_text}"
-        )
+            progress_callback(
+                percent,
+                (
+                    "Calculating sector speeds "
+                    f"({number:,}/{total_flights:,})..."
+                ),
+            )
 
     return results
 
@@ -136,6 +150,7 @@ def summarize_sector_speed(
     for result in speed_results:
 
         flight = result["flight"]
+
         distance_km = result[
             "distance_km"
         ]
@@ -146,8 +161,10 @@ def summarize_sector_speed(
         ):
             continue
 
-        aircraft = FuelDatabase.normalize_type(
-            flight.aircraft
+        aircraft = (
+            FuelDatabase.normalize_type(
+                flight.aircraft
+            )
         )
 
         data = aircraft_data[
@@ -202,12 +219,10 @@ def summarize_sector_speed(
 # ---------------------------------------------------------
 # Backwards-compatible aliases
 # ---------------------------------------------------------
-#
-# These allow existing code to continue working if it still
-# calls the previous function names.
-# ---------------------------------------------------------
 
-calculate_ground_speed = calculate_sector_speed
+calculate_ground_speed = (
+    calculate_sector_speed
+)
 
 calculate_all_ground_speeds = (
     calculate_all_sector_speeds

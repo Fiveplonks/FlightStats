@@ -44,116 +44,54 @@ def calculate_flight_distance(
 def calculate_all_distances(
     flights,
     airport_database,
+    progress_callback=None,
 ):
     """
     Calculate distances for all flights.
 
-    Unresolved airports do not stop processing.
+    progress_callback, when supplied, is called as:
 
-    Returns a list of dictionaries containing:
-
-        flight
-        distance_km
-
-    Flights whose airports cannot be resolved have
-    distance_km set to None.
+        progress_callback(percent, message)
     """
 
     results = []
 
     total_flights = len(flights)
 
-    unresolved = []
-
-    print(
-        "\nCalculating flight distances..."
-    )
+    if total_flights == 0:
+        return results
 
     for number, flight in enumerate(
         flights,
         start=1,
     ):
 
-        try:
-            distance = calculate_flight_distance(
-                flight,
-                airport_database,
-            )
-
-            results.append(
-                {
-                    "flight": flight,
-                    "distance_km": distance,
-                }
-            )
-
-            print(
-                f"Processing flight "
-                f"{number}/{total_flights}... "
-                f"{flight.departure} → "
-                f"{flight.arrival} "
-                f"{distance:.1f} km"
-            )
-
-        except ValueError as error:
-
-            results.append(
-                {
-                    "flight": flight,
-                    "distance_km": None,
-                }
-            )
-
-            unresolved.append(
-                {
-                    "flight": flight,
-                    "error": str(error),
-                }
-            )
-
-            print(
-                f"Processing flight "
-                f"{number}/{total_flights}... "
-                f"{flight.departure} → "
-                f"{flight.arrival} "
-                f"UNRESOLVED"
-            )
-
-    print(
-        f"\nDistance processing complete."
-    )
-
-    print(
-        f"Flights processed: "
-        f"{total_flights}"
-    )
-
-    print(
-        f"Flights with distance: "
-        f"{total_flights - len(unresolved)}"
-    )
-
-    print(
-        f"Flights unresolved: "
-        f"{len(unresolved)}"
-    )
-
-    if unresolved:
-        print(
-            "\nUnresolved flights:"
+        distance = calculate_flight_distance(
+            flight,
+            airport_database,
         )
 
-        for item in unresolved:
-            flight = item["flight"]
+        results.append(
+            {
+                "flight": flight,
+                "distance_km": distance,
+            }
+        )
 
-            print(
-                f"  {flight.date} "
-                f"{flight.departure} → "
-                f"{flight.arrival}"
+        if progress_callback is not None:
+
+            percent = int(
+                number
+                / total_flights
+                * 100
             )
 
-            print(
-                f"    {item['error']}"
+            progress_callback(
+                percent,
+                (
+                    "Calculating flight distances "
+                    f"({number:,}/{total_flights:,})..."
+                ),
             )
 
     return results
@@ -165,9 +103,6 @@ def total_distance_km(
     """
     Calculate total distance from a list
     returned by calculate_all_distances().
-
-    Flights with no calculated distance are
-    ignored.
     """
 
     return sum(

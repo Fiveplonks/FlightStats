@@ -1,65 +1,72 @@
-from collections import defaultdict
-
-
 def calculate_fuel_for_flight(
     flight,
     fuel_database,
 ):
     """
-    Calculate estimated fuel consumption for one flight.
+    Calculate estimated fuel for one flight.
 
     Returns a dictionary containing:
-        - flight
-        - aircraft type
-        - duration
-        - fuel burn rate
-        - fuel unit
-        - estimated fuel
-        - source
-        - method
+        flight
+        fuel
+        unit
+        fuel_rate
     """
 
     profile = fuel_database.resolve(
         flight.aircraft
     )
 
-    duration_hours = (
-        flight.flight_minutes / 60
-    )
+    if profile is None:
+        return {
+            "flight": flight,
+            "fuel": None,
+            "unit": None,
+            "fuel_rate": None,
+        }
 
-    estimated_fuel = (
-        duration_hours
-        * profile["average_burn"]
+    fuel_rate = profile["average_burn"]
+    unit = profile["unit"]
+
+    fuel = (
+        flight.flight_minutes
+        / 60
+        * fuel_rate
     )
 
     return {
         "flight": flight,
-        "aircraft_type": profile[
-            "normalized_type"
-        ],
-        "duration_hours": duration_hours,
-        "average_burn": profile[
-            "average_burn"
-        ],
-        "unit": profile["unit"],
-        "estimated_fuel": estimated_fuel,
-        "method": profile["method"],
-        "source": profile["source"],
+        "fuel": fuel,
+        "unit": unit,
+        "fuel_rate": fuel_rate,
     }
 
 
 def calculate_all_fuel(
     flights,
     fuel_database,
+    progress_callback=None,
 ):
     """
-    Calculate estimated fuel consumption
-    for every flight.
+    Calculate estimated fuel for all flights.
+
+    progress_callback is optional.
+
+    When supplied, it is called as:
+
+        progress_callback(
+            percent,
+            message,
+        )
     """
 
     results = []
 
-    total_flights = len(flights)
+    total_flights = len(
+        flights
+    )
+
+    if total_flights == 0:
+        return results
 
     for number, flight in enumerate(
         flights,
@@ -71,18 +78,25 @@ def calculate_all_fuel(
             fuel_database,
         )
 
-        results.append(result)
-
-        print(
-            f"Processing flight "
-            f"{number}/{total_flights}... "
-            f"{flight.date} "
-            f"{flight.departure} → "
-            f"{flight.arrival} "
-            f"{flight.aircraft} "
-            f"{result['estimated_fuel']:.1f} "
-            f"{result['unit']}"
+        results.append(
+            result
         )
+
+        if progress_callback is not None:
+
+            percent = int(
+                number
+                / total_flights
+                * 100
+            )
+
+            progress_callback(
+                percent,
+                (
+                    "Calculating estimated fuel "
+                    f"({number:,}/{total_flights:,})..."
+                ),
+            )
 
     return results
 
@@ -91,52 +105,71 @@ def summarize_fuel(
     fuel_results,
 ):
     """
-    Summarize estimated fuel consumption.
+    Summarize estimated fuel.
 
-    Fuel is kept separated by unit because
-    litres of avgas and kilograms of jet fuel
-    cannot simply be added together.
+    Returns:
+
+        {
+            "totals": {
+                "kg/h": ...,
+                "L/h": ...
+            },
+
+            "by_aircraft": {
+                aircraft: {
+                    "flights": ...,
+                    "flight_minutes": ...,
+                    "fuel": ...,
+                    "unit": ...
+                }
+            }
+        }
     """
 
-    totals = defaultdict(float)
+    totals = {}
 
-    by_aircraft = defaultdict(
-        lambda: {
-            "flights": 0,
-            "flight_minutes": 0,
-            "fuel": 0.0,
-            "unit": None,
-        }
-    )
+    by_aircraft = {}
 
     for result in fuel_results:
 
+        fuel = result["fuel"]
         unit = result["unit"]
-        aircraft = result["aircraft_type"]
+        flight = result["flight"]
 
-        totals[unit] += result[
-            "estimated_fuel"
-        ]
+        if fuel is None:
+            continue
 
-        aircraft_data = by_aircraft[
+        if unit not in totals:
+            totals[unit] = 0.0
+
+        totals[unit] += fuel
+
+        aircraft = flight.aircraft
+
+        if aircraft not in by_aircraft:
+
+            by_aircraft[aircraft] = {
+                "flights": 0,
+                "flight_minutes": 0,
+                "fuel": 0.0,
+                "unit": unit,
+            }
+
+        by_aircraft[
             aircraft
-        ]
+        ]["flights"] += 1
 
-        aircraft_data["flights"] += 1
-
-        aircraft_data[
-            "flight_minutes"
-        ] += result[
-            "flight"
-        ].flight_minutes
-
-        aircraft_data["fuel"] += (
-            result["estimated_fuel"]
+        by_aircraft[
+            aircraft
+        ]["flight_minutes"] += (
+            flight.flight_minutes
         )
 
-        aircraft_data["unit"] = unit
+        by_aircraft[
+            aircraft
+        ]["fuel"] += fuel
 
     return {
-        "totals": dict(totals),
-        "by_aircraft": dict(by_aircraft),
+        "totals": totals,
+        "by_aircraft": by_aircraft,
     }
