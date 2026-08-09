@@ -11,11 +11,11 @@ FLIGHT_ROW_PATTERN = re.compile(
     ^
     (?P<date>\d{2}-\d{2}-\d{4})
     \s+
-    (?P<departure>[A-Z0-9]{4})
+    (?P<departure>[A-Z0-9]{3,4})
     \s+
     (?P<departure_time>\d{2}:\d{2})
     \s+
-    (?P<arrival>[A-Z0-9]{4})
+    (?P<arrival>[A-Z0-9]{3,4})
     \s+
     (?P<arrival_time>\d{2}:\d{2})
     \s+

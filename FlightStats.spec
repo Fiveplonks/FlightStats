@@ -17,10 +17,6 @@ a = Analysis(
             str(PROJECT_DIR / "data" / "aircraft_fuel_burn.csv"),
             "data",
         ),
-        (
-            str(PROJECT_DIR / "logbook.pdf"),
-            ".",
-        ),
     ],
     hiddenimports=[],
     hookspath=[],
