@@ -19,6 +19,7 @@ BUNDLE_ROOT = _bundle_root()
 RESOURCE_DATA_DIR = BUNDLE_ROOT / "data"
 BUNDLED_AIRPORT_DATABASE = RESOURCE_DATA_DIR / "airports.csv"
 BUNDLED_FUEL_DATABASE = RESOURCE_DATA_DIR / "aircraft_fuel_burn.csv"
+BUNDLED_LOGBOOK = BUNDLE_ROOT / "logbook.pdf"
 
 APPLICATION_SUPPORT_DIR = (
     Path.home() / "Library" / "Application Support" / APP_NAME
@@ -41,8 +42,36 @@ def ensure_app_directories():
 
 
 def get_logbook_path():
-    return DEVELOPMENT_LOGBOOK
+    """
+    Return the user's FlightStats logbook.
 
+    Development uses the project-level logbook.pdf.
+
+    A packaged app uses ~/Documents/FlightStats/logbook.pdf.
+    On first packaged launch, the bundled logbook is copied there
+    if the user has not supplied one yet.
+    """
+
+    if not getattr(sys, "frozen", False):
+        return DEVELOPMENT_LOGBOOK
+
+    ensure_app_directories()
+
+    if DOCUMENTS_LOGBOOK.exists():
+        return DOCUMENTS_LOGBOOK
+
+    if BUNDLED_LOGBOOK.exists():
+        DOCUMENTS_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        shutil.copy2(
+            BUNDLED_LOGBOOK,
+            DOCUMENTS_LOGBOOK,
+        )
+        return DOCUMENTS_LOGBOOK
+
+    return DOCUMENTS_LOGBOOK
 
 def migrate_file_if_needed(source, destination):
     """Copy a legacy file only when the new location does not exist."""
