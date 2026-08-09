@@ -10,6 +10,7 @@ def calculate_fuel_for_flight(
         fuel
         unit
         fuel_rate
+        normalized_aircraft
     """
 
     profile = fuel_database.resolve(
@@ -22,6 +23,7 @@ def calculate_fuel_for_flight(
             "fuel": None,
             "unit": None,
             "fuel_rate": None,
+            "normalized_aircraft": None,
         }
 
     fuel_rate = profile["average_burn"]
@@ -38,6 +40,9 @@ def calculate_fuel_for_flight(
         "fuel": fuel,
         "unit": unit,
         "fuel_rate": fuel_rate,
+        "normalized_aircraft": profile.get(
+            "normalized_type"
+        ),
     }
 
 
@@ -107,23 +112,8 @@ def summarize_fuel(
     """
     Summarize estimated fuel.
 
-    Returns:
-
-        {
-            "totals": {
-                "kg/h": ...,
-                "L/h": ...
-            },
-
-            "by_aircraft": {
-                aircraft: {
-                    "flights": ...,
-                    "flight_minutes": ...,
-                    "fuel": ...,
-                    "unit": ...
-                }
-            }
-        }
+    Aircraft are grouped by the canonical normalized
+    aircraft type returned by FuelDatabase.
     """
 
     totals = {}
@@ -144,7 +134,11 @@ def summarize_fuel(
 
         totals[unit] += fuel
 
-        aircraft = flight.aircraft
+        # Group equivalent aircraft representations together.
+        aircraft = (
+            result.get("normalized_aircraft")
+            or flight.aircraft
+        )
 
         if aircraft not in by_aircraft:
 

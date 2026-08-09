@@ -41,6 +41,10 @@ class FuelDatabase:
         "A330-200": "A330-200",
         "A330-200F": "A330-200F",
         "A330-900": "A330-900",
+        "CRJ900": "CRJ900",
+        "DH8D": "DH8D",
+        "ATR72": "ATR72",
+        "PA44": "PA44",
         "PA28": "PA28",
         "PA34": "PA34",
         "PA44": "PA44",
@@ -57,23 +61,53 @@ class FuelDatabase:
         "A320": "A320",
         "A330-200": "A332",
         "A330-200F": "A332",
-
-        # OpenAP uses the ICAO type designator CRJ9 for the
-        # Bombardier CRJ-900. The previous mapping passed
-        # "crj900", which OpenAP does not recognize.
         "CRJ900": "CRJ9",
     }
 
+    # Supplementary profiles are used only when OpenAP cannot resolve
+    # the aircraft. Values are deliberately kept separate from OpenAP
+    # and include provenance/methodology in the profile notes.
+    SUPPLEMENTARY_PROFILES = {
+        "ATR72": {
+            "aircraft_type": "ATR72",
+            "average_burn": 650.0,
+            "unit": "kg/h",
+            "method": "Manufacturer cruise estimate",
+            "source": "ATR 72-600 manufacturer data",
+            "notes": (
+                "ATR 72-600 fuel consumption in cruise at 95% MTOW, "
+                "ISA, FL240. Generic ATR72 mapping; actual variant, "
+                "weight, power setting and conditions may differ."
+            ),
+        },
+        "DH8D": {
+            "aircraft_type": "DH8D",
+            "average_burn": 812.5,
+            "unit": "kg/h",
+            "method": "Manufacturer trip-fuel-derived estimate",
+            "source": "De Havilland Dash 8-400 manufacturer data",
+            "notes": (
+                "Derived as the mean of manufacturer trip-fuel rates "
+                "for 200 NM (696 kg / 51 min) and 500 NM "
+                "(1478 kg / 110 min). This is a representative "
+                "trip-average estimate, not pure cruise fuel flow."
+            ),
+        },
+        "PA44": {
+            "aircraft_type": "PA44",
+            "average_burn": 88.2,
+            "unit": "L/h",
+            "method": "Manufacturer 75% power estimate",
+            "source": "Piper Seminole manufacturer data",
+            "notes": (
+                "Current Piper Seminole fuel burn at 75% power and "
+                "6,000 ft: 23.3 US gal/h, converted to 88.2 L/h. "
+                "Actual burn varies with engine variant, power, "
+                "altitude and operating conditions."
+            ),
+        },
+    }
 
-    # Deliberately not mapped:
-    #
-    # A330-900 — OpenAP's current aircraft dataset does not provide an
-    # A339 model. Do not substitute A332/A333 because that would silently
-    # assign the wrong aircraft performance.
-    #
-    # DH8D / ATR72 / PA28 / PA34 / PA44 / EA300L — no appropriate
-    # OpenAP model is currently available. These remain unresolved until
-    # we add a separately sourced supplementary profile.
 
     def __init__(self):
         self.aircraft = {}
@@ -378,6 +412,30 @@ class FuelDatabase:
             )
             return None
 
+    def lookup_supplementary(self, aircraft_type):
+        """Return a provenance-aware supplementary profile if available."""
+        normalized = self.normalize_type(aircraft_type)
+
+        if not normalized:
+            return None
+
+        profile = self.SUPPLEMENTARY_PROFILES.get(
+            normalized.upper()
+        )
+
+        if not profile:
+            return None
+
+        return {
+            "aircraft_type": profile["aircraft_type"],
+            "normalized_type": normalized,
+            "average_burn": profile["average_burn"],
+            "unit": profile["unit"],
+            "method": profile["method"],
+            "source": profile["source"],
+            "notes": profile["notes"],
+        }
+
     def request_profile(self, aircraft_type):
         normalized_type = self.normalize_type(aircraft_type)
 
@@ -425,7 +483,8 @@ class FuelDatabase:
         Resolution order:
             1. Local FlightStats database
             2. OpenAP automatic estimate
-            3. Optional interactive manual entry
+            3. Supplementary sourced profile
+            4. Optional interactive manual entry
 
         Successful OpenAP-derived profiles are persisted in the writable
         user database. Failed automatic resolutions are cached only for
@@ -456,6 +515,24 @@ class FuelDatabase:
             return None
 
         profile = self.lookup_openap(
+            aircraft_type
+        )
+
+        if profile:
+            return self.add(
+                aircraft_type=profile[
+                    "aircraft_type"
+                ],
+                average_burn=profile[
+                    "average_burn"
+                ],
+                unit=profile["unit"],
+                method=profile["method"],
+                source=profile["source"],
+                notes=profile["notes"],
+            )
+
+        profile = self.lookup_supplementary(
             aircraft_type
         )
 
