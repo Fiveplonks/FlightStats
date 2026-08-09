@@ -1,13 +1,10 @@
 import hashlib
 import json
-import sys
 from datetime import date, time
 from pathlib import Path
 
-from app_paths import (
-    CACHE_DIR,
-)
-from parser.easa_pdf import parse_logbook
+from app_paths import CACHE_DIR
+from parser.loader import parse_flight_file
 from parser.airports import AirportDatabase
 from parser.flight_analysis import (
     calculate_all_distances,
@@ -46,30 +43,18 @@ def _file_sha256(path):
 
 
 def _parser_signature():
-    """
-    Return a signature for the parser code used by the cache.
-
-    Development:
-        Hash the actual parser source files so changing the parser
-        automatically invalidates the cached logbook.
-
-    Packaged application:
-        Parser source files are embedded inside the PyInstaller
-        application and are not guaranteed to exist as physical
-        .py files. Use a packaged signature instead.
-    """
-
-    if getattr(
-        sys,
-        "frozen",
-        False,
-    ):
-        return "flightstats-packaged-parser-v2"
+    """Return a signature for the parser code used by the cache."""
 
     parser_files = [
         Path(__file__).resolve().parent
         / "parser"
         / "easa_pdf.py",
+        Path(__file__).resolve().parent
+        / "parser"
+        / "csv.py",
+        Path(__file__).resolve().parent
+        / "parser"
+        / "loader.py",
         Path(__file__).resolve().parent
         / "parser"
         / "models.py",
@@ -167,7 +152,7 @@ def _load_cached_flights(
     logbook_path,
 ):
     """
-    Load parsed flights from cache when the PDF and parser
+    Load parsed flights from cache when the input file and parser
     have not changed since the cache was created.
     """
 
@@ -351,7 +336,7 @@ class FlightStatsData:
                 "Parsing logbook...",
             )
 
-            self.flights = parse_logbook(
+            self.flights = parse_flight_file(
                 self.logbook_path
             )
 

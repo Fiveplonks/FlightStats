@@ -279,7 +279,7 @@ class MetricCard(QFrame):
 
 
 class LogbookDropZone(QFrame):
-    """Dashboard drop zone for selecting a logbook PDF."""
+    """Dashboard drop zone for selecting a logbook PDF or CSV."""
 
     logbook_selected = Signal(str)
 
@@ -326,7 +326,7 @@ class LogbookDropZone(QFrame):
         )
 
         self.title_label = QLabel(
-            "Drop your logbook PDF here"
+            "Drop your logbook PDF or CSV here"
         )
 
         self.title_label.setObjectName(
@@ -342,7 +342,7 @@ class LogbookDropZone(QFrame):
         )
 
         self.subtitle_label = QLabel(
-            "or click to browse for a PDF"
+            "or click to browse for a PDF or CSV"
         )
 
         self.subtitle_label.setObjectName(
@@ -358,7 +358,7 @@ class LogbookDropZone(QFrame):
         )
 
         self.browse_button = QPushButton(
-            "Choose Logbook PDF"
+            "Choose Logbook"
         )
 
         self.browse_button.setObjectName(
@@ -380,12 +380,12 @@ class LogbookDropZone(QFrame):
         )
 
     def browse_for_logbook(self):
-        """Open the PDF file picker."""
+        """Open the logbook file picker."""
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Flight Logbook",
             "",
-            "PDF files (*.pdf)",
+            "Logbook files (*.pdf *.csv)",
         )
 
         if path:
@@ -394,18 +394,18 @@ class LogbookDropZone(QFrame):
             )
 
     def _select_path(self, path):
-        """Validate and emit a selected PDF path."""
+        """Validate and emit a selected logbook path."""
         path = Path(path)
 
         if (
             not path.exists()
             or not path.is_file()
-            or path.suffix.lower() != ".pdf"
+            or path.suffix.lower() not in {".pdf", ".csv"}
         ):
             QMessageBox.warning(
                 self,
                 "Invalid Logbook",
-                "Please select a valid PDF logbook.",
+                "Please select a valid PDF or CSV logbook.",
             )
             return
 
@@ -424,7 +424,7 @@ class LogbookDropZone(QFrame):
         )
 
     def dragEnterEvent(self, event):
-        """Accept dragged PDF files."""
+        """Accept dragged PDF or CSV files."""
         if not event.mimeData().hasUrls():
             event.ignore()
             return
@@ -462,7 +462,7 @@ class LogbookDropZone(QFrame):
         event.accept()
 
     def dropEvent(self, event):
-        """Handle a dropped PDF logbook."""
+        """Handle a dropped PDF or CSV logbook."""
         self.setProperty(
             "dragActive",
             False,
@@ -5849,7 +5849,7 @@ class MainWindow(QMainWindow):
             self,
             "Select Flight Logbook",
             "",
-            "PDF files (*.pdf)",
+            "Logbook files (*.pdf *.csv)",
         )
 
         if path:
@@ -5866,12 +5866,12 @@ class MainWindow(QMainWindow):
         if (
             not path.exists()
             or not path.is_file()
-            or path.suffix.lower() != ".pdf"
+            or path.suffix.lower() not in {".pdf", ".csv"}
         ):
             QMessageBox.warning(
                 self,
                 "Invalid Logbook",
-                "Please select a valid PDF logbook.",
+                "Please select a valid PDF or CSV logbook.",
             )
             return
 
