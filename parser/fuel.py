@@ -1,4 +1,11 @@
 import csv
+import math
+
+try:
+    from openap import FuelFlow, prop
+except ImportError:
+    FuelFlow = None
+    prop = None
 
 from app_paths import (
     BUNDLED_FUEL_DATABASE,
@@ -40,8 +47,24 @@ class FuelDatabase:
         "EA300L": "EA300L",
     }
 
+    OPENAP_TYPES = {
+        "B737-700": "B737",
+        "B737-800": "B738",
+        "B737-8200": "B38M",
+        "B737-900": "B739",
+        "B737-COMBI": "B737",
+        "A319": "A319",
+        "A320": "A320",
+        "A330-200": "A332",
+        "A330-200F": "A332",
+        "A330-900": "A339",
+    }
+
     def __init__(self):
         self.aircraft = {}
+        # Aircraft types that could not be resolved during this run.
+        # Prevents repeated OpenAP lookups and repeated terminal output.
+        self._unresolved_types = set()
 
         USER_FUEL_DATABASE.parent.mkdir(
             parents=True,
@@ -225,6 +248,121 @@ class FuelDatabase:
             ):
                 writer.writerow(profile)
 
+    @staticmethod
+    def _speed_of_sound_knots(altitude_m):
+        """ISA speed of sound at altitude, returned in knots."""
+        temperature = 288.15 - 0.0065 * altitude_m
+        temperature = max(temperature, 216.65)
+
+        speed_of_sound_ms = math.sqrt(
+            1.4 * 287.05 * temperature
+        )
+
+        return speed_of_sound_ms * 1.94384449
+
+    def lookup_openap(self, aircraft_type):
+        """
+        Derive an indicative average cruise fuel burn from OpenAP.
+
+        OpenAP is an open aircraft-performance model. We evaluate its
+        fuel-flow model at the aircraft's representative cruise altitude
+        and Mach number using 75% MTOW. The result is intentionally marked
+        as an estimate; it is not an airline-specific fuel-flow figure.
+        """
+        if FuelFlow is None or prop is None:
+            return None
+
+        normalized = self.normalize_type(aircraft_type)
+
+        if not normalized:
+            return None
+
+        openap_type = self.OPENAP_TYPES.get(
+            normalized,
+            normalized,
+        )
+
+        try:
+            aircraft = prop.aircraft(
+                openap_type,
+                use_synonym=True,
+            )
+
+            limits = aircraft.get("limits", {})
+            mtow = limits.get("MTOW")
+
+            cruise = aircraft.get("cruise", {})
+            cruise_height_m = cruise.get(
+                "height",
+                11000,
+            )
+            cruise_mach = cruise.get(
+                "mach",
+                0.78,
+            )
+
+            if not mtow or not cruise_height_m:
+                return None
+
+            mass = float(mtow) * 0.75
+            altitude_ft = float(cruise_height_m) * 3.280839895
+            tas_knots = (
+                float(cruise_mach)
+                * self._speed_of_sound_knots(
+                    float(cruise_height_m)
+                )
+            )
+
+            flow_kg_s = FuelFlow(
+                openap_type,
+                use_synonym=True,
+            ).enroute(
+                mass=mass,
+                tas=tas_knots,
+                alt=altitude_ft,
+                vs=0,
+            )
+
+            average_burn = float(flow_kg_s) * 3600
+
+            if not math.isfinite(average_burn):
+                return None
+
+            if average_burn <= 0:
+                return None
+
+            return {
+                "aircraft_type": aircraft_type,
+                "normalized_type": normalized,
+                "average_burn": round(
+                    average_burn,
+                    1,
+                ),
+                "unit": "kg/h",
+                "method": "OpenAP cruise estimate",
+                "source": "OpenAP",
+                "notes": (
+                    "Indicative cruise fuel-flow estimate "
+                    "at 75% MTOW and representative cruise "
+                    "conditions. Not an airline-specific "
+                    "operational fuel-flow value."
+                ),
+            }
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            AttributeError,
+            IndexError,
+            RuntimeError,
+        ) as error:
+            print(
+                f"OpenAP fuel lookup failed for "
+                f"{aircraft_type}: {error}"
+            )
+            return None
+
     def request_profile(self, aircraft_type):
         normalized_type = self.normalize_type(aircraft_type)
 
@@ -261,10 +399,78 @@ class FuelDatabase:
             notes=notes,
         )
 
-    def resolve(self, aircraft_type):
-        profile = self.find(aircraft_type)
+    def resolve(
+        self,
+        aircraft_type,
+        interactive=False,
+    ):
+        """
+        Resolve a fuel profile.
+
+        Resolution order:
+            1. Local FlightStats database
+            2. OpenAP automatic estimate
+            3. Optional interactive manual entry
+
+        Successful OpenAP-derived profiles are persisted in the writable
+        user database. Failed automatic resolutions are cached only for
+        the current run, preventing repeated lookups for every flight
+        using the same unsupported aircraft type.
+        """
+        normalized = self.normalize_type(
+            aircraft_type
+        )
+
+        if not normalized:
+            return None
+
+        profile = self.find(
+            normalized
+        )
 
         if profile:
             return profile
 
-        return self.request_profile(aircraft_type)
+        cache_key = normalized.upper()
+
+        if cache_key in self._unresolved_types:
+            if interactive:
+                return self.request_profile(
+                    aircraft_type
+                )
+            return None
+
+        profile = self.lookup_openap(
+            aircraft_type
+        )
+
+        if profile:
+            return self.add(
+                aircraft_type=profile[
+                    "aircraft_type"
+                ],
+                average_burn=profile[
+                    "average_burn"
+                ],
+                unit=profile["unit"],
+                method=profile["method"],
+                source=profile["source"],
+                notes=profile["notes"],
+            )
+
+        self._unresolved_types.add(
+            cache_key
+        )
+
+        print(
+            "No automatic fuel profile available "
+            f"for {aircraft_type}."
+        )
+
+        if interactive:
+            return self.request_profile(
+                aircraft_type
+            )
+
+        return None
+
