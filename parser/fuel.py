@@ -57,8 +57,23 @@ class FuelDatabase:
         "A320": "A320",
         "A330-200": "A332",
         "A330-200F": "A332",
-        "A330-900": "A339",
+
+        # OpenAP uses the ICAO type designator CRJ9 for the
+        # Bombardier CRJ-900. The previous mapping passed
+        # "crj900", which OpenAP does not recognize.
+        "CRJ900": "CRJ9",
     }
+
+
+    # Deliberately not mapped:
+    #
+    # A330-900 — OpenAP's current aircraft dataset does not provide an
+    # A339 model. Do not substitute A332/A333 because that would silently
+    # assign the wrong aircraft performance.
+    #
+    # DH8D / ATR72 / PA28 / PA34 / PA44 / EA300L — no appropriate
+    # OpenAP model is currently available. These remain unresolved until
+    # we add a separately sourced supplementary profile.
 
     def __init__(self):
         self.aircraft = {}
