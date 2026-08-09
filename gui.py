@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
     QHeaderView,
@@ -173,17 +172,22 @@ class MetricCard(QFrame):
 
 
 class DashboardPage(QWidget):
-    """Main FlightStats dashboard with statistics separated by year."""
+    """Main FlightStats dashboard."""
 
     def __init__(self):
         super().__init__()
 
-        self.data = None
-        self.selected_year = None
-        self.database = FuelDatabase()
+        self.layout = QVBoxLayout(
+            self
+        )
 
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(40, 35, 40, 35)
+        self.layout.setContentsMargins(
+            40,
+            35,
+            40,
+            35,
+        )
+
         self.layout.setSpacing(20)
 
         # -------------------------------------------------
@@ -194,297 +198,298 @@ class DashboardPage(QWidget):
 
         title_layout = QVBoxLayout()
 
-        title = QLabel("Dashboard")
-        title.setObjectName("pageTitle")
-
-        subtitle = QLabel("FlightStats overview")
-        subtitle.setObjectName("pageSubtitle")
-
-        title_layout.addWidget(title)
-        title_layout.addWidget(subtitle)
-
-        header.addLayout(title_layout)
-        header.addStretch()
-
-        self.refresh_button = QPushButton("Refresh Logbook")
-        self.refresh_button.setObjectName("refreshButton")
-        self.refresh_button.setCursor(Qt.PointingHandCursor)
-
-        header.addWidget(self.refresh_button)
-        self.layout.addLayout(header)
-
-        # -------------------------------------------------
-        # YEAR TABS
-        # -------------------------------------------------
-
-        self.year_tabs = QTabWidget()
-        self.year_tabs.setObjectName("yearTabs")
-        self.year_tabs.currentChanged.connect(
-            self.year_tab_changed
+        title = QLabel(
+            "Dashboard"
         )
 
-        self.layout.addWidget(self.year_tabs)
+        title.setObjectName(
+            "pageTitle"
+        )
+
+        subtitle = QLabel(
+            "FlightStats overview"
+        )
+
+        subtitle.setObjectName(
+            "pageSubtitle"
+        )
+
+        title_layout.addWidget(
+            title
+        )
+
+        title_layout.addWidget(
+            subtitle
+        )
+
+        header.addLayout(
+            title_layout
+        )
+
+        header.addStretch()
+
+        self.refresh_button = QPushButton(
+            "Refresh Logbook"
+        )
+
+        self.refresh_button.setObjectName(
+            "refreshButton"
+        )
+
+        self.refresh_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        header.addWidget(
+            self.refresh_button
+        )
+
+        self.layout.addLayout(
+            header
+        )
 
         # -------------------------------------------------
         # LOADING AREA
         # -------------------------------------------------
 
         self.loading_frame = QFrame()
-        self.loading_frame.setObjectName("loadingFrame")
 
-        loading_layout = QVBoxLayout(self.loading_frame)
-        loading_layout.setContentsMargins(0, 5, 0, 5)
-        loading_layout.setSpacing(6)
+        self.loading_frame.setObjectName(
+            "loadingFrame"
+        )
 
-        self.status_label = QLabel("Ready")
-        self.status_label.setObjectName("statusLabel")
+        loading_layout = QVBoxLayout(
+            self.loading_frame
+        )
+
+        loading_layout.setContentsMargins(
+            0,
+            5,
+            0,
+            5,
+        )
+
+        loading_layout.setSpacing(
+            6
+        )
+
+        self.status_label = QLabel(
+            "Ready"
+        )
+
+        self.status_label.setObjectName(
+            "statusLabel"
+        )
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("progressBar")
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
 
-        loading_layout.addWidget(self.status_label)
-        loading_layout.addWidget(self.progress_bar)
+        self.progress_bar.setObjectName(
+            "progressBar"
+        )
 
-        self.layout.addWidget(self.loading_frame)
+        self.progress_bar.setMinimum(
+            0
+        )
+
+        self.progress_bar.setMaximum(
+            100
+        )
+
+        self.progress_bar.setValue(
+            0
+        )
+
+        self.progress_bar.setTextVisible(
+            True
+        )
+
+        loading_layout.addWidget(
+            self.status_label
+        )
+
+        loading_layout.addWidget(
+            self.progress_bar
+        )
+
+        self.layout.addWidget(
+            self.loading_frame
+        )
 
         # -------------------------------------------------
         # KPI CARDS
         # -------------------------------------------------
 
         cards_layout = QGridLayout()
-        cards_layout.setSpacing(15)
 
-        self.flights_card = MetricCard("Flights")
-        self.time_card = MetricCard("Flight time")
-        self.distance_card = MetricCard("Distance")
-        self.jet_fuel_card = MetricCard("Estimated jet fuel")
-        self.piston_fuel_card = MetricCard("Estimated piston fuel")
-        self.airports_card = MetricCard("Airports")
+        cards_layout.setSpacing(
+            15
+        )
 
-        cards_layout.addWidget(self.flights_card, 0, 0)
-        cards_layout.addWidget(self.time_card, 0, 1)
-        cards_layout.addWidget(self.distance_card, 0, 2)
-        cards_layout.addWidget(self.jet_fuel_card, 1, 0)
-        cards_layout.addWidget(self.piston_fuel_card, 1, 1)
-        cards_layout.addWidget(self.airports_card, 1, 2)
+        self.flights_card = MetricCard(
+            "Flights"
+        )
 
-        self.layout.addLayout(cards_layout)
+        self.time_card = MetricCard(
+            "Flight time"
+        )
+
+        self.distance_card = MetricCard(
+            "Distance"
+        )
+
+        self.jet_fuel_card = MetricCard(
+            "Estimated jet fuel"
+        )
+
+        self.piston_fuel_card = MetricCard(
+            "Estimated piston fuel"
+        )
+
+        self.airports_card = MetricCard(
+            "Airports"
+        )
+
+        cards_layout.addWidget(
+            self.flights_card,
+            0,
+            0,
+        )
+
+        cards_layout.addWidget(
+            self.time_card,
+            0,
+            1,
+        )
+
+        cards_layout.addWidget(
+            self.distance_card,
+            0,
+            2,
+        )
+
+        cards_layout.addWidget(
+            self.jet_fuel_card,
+            1,
+            0,
+        )
+
+        cards_layout.addWidget(
+            self.piston_fuel_card,
+            1,
+            1,
+        )
+
+        cards_layout.addWidget(
+            self.airports_card,
+            1,
+            2,
+        )
+
+        self.layout.addLayout(
+            cards_layout
+        )
 
         # -------------------------------------------------
         # AIRCRAFT
         # -------------------------------------------------
 
-        aircraft_title = QLabel("Aircraft")
-        aircraft_title.setObjectName("sectionTitle")
-        self.layout.addWidget(aircraft_title)
+        aircraft_title = QLabel(
+            "Aircraft"
+        )
+
+        aircraft_title.setObjectName(
+            "sectionTitle"
+        )
+
+        self.layout.addWidget(
+            aircraft_title
+        )
 
         self.aircraft_container = QFrame()
-        self.aircraft_container.setObjectName("card")
 
-        self.aircraft_layout = QVBoxLayout(self.aircraft_container)
-        self.aircraft_layout.setContentsMargins(20, 15, 20, 15)
-        self.aircraft_layout.setSpacing(8)
+        self.aircraft_container.setObjectName(
+            "card"
+        )
 
-        self.layout.addWidget(self.aircraft_container)
+        self.aircraft_layout = QVBoxLayout(
+            self.aircraft_container
+        )
+
+        self.aircraft_layout.setContentsMargins(
+            20,
+            15,
+            20,
+            15,
+        )
+
+        self.aircraft_layout.setSpacing(
+            8
+        )
+
+        self.layout.addWidget(
+            self.aircraft_container
+        )
+
         self.layout.addStretch()
 
-    def set_data(self, data):
-        """Set shared data and rebuild the available year tabs."""
-        self.data = data
-        self.build_year_tabs()
-
-    def build_year_tabs(self):
-        """Create a tab for every year represented in the logbook."""
-        self.year_tabs.blockSignals(True)
-        self.year_tabs.clear()
-
-        if self.data is None or not self.data.flights:
-            self.selected_year = None
-            self.year_tabs.addTab(QWidget(), "ALL")
-            self.year_tabs.blockSignals(False)
-            self.update_dashboard()
-            return
-
-        years = sorted(
-            {
-                flight.date.year
-                for flight in self.data.flights
-            },
-            reverse=True,
-        )
-
-        for year in years:
-            self.year_tabs.addTab(
-                QWidget(),
-                str(year),
-            )
-
-        self.year_tabs.addTab(
-            QWidget(),
-            "ALL",
-        )
-
-        self.year_tabs.blockSignals(False)
-
-        # Most recent year is the default view.
-        # Signals are blocked while the tabs are rebuilt, so
-        # selecting the tab does not call year_tab_changed().
-        # Explicitly set the selected year and refresh the
-        # dashboard now that the logbook has finished loading.
-        self.selected_year = years[0]
-        self.year_tabs.setCurrentIndex(0)
-        self.update_dashboard()
-
-    def year_tab_changed(self, index):
-        """Change the active statistics period."""
-        if index < 0 or self.data is None:
-            return
-
-        text = self.year_tabs.tabText(index)
-
-        if text == "ALL":
-            self.selected_year = None
-        else:
-            try:
-                self.selected_year = int(text)
-            except ValueError:
-                self.selected_year = None
-
-        self.update_dashboard()
-
-    def get_filtered_indices(self):
-        """Return original flight indices for the selected period."""
-        if self.data is None:
-            return []
-
-        if self.selected_year is None:
-            return list(range(len(self.data.flights)))
-
-        return [
-            index
-            for index, flight in enumerate(self.data.flights)
-            if flight.date.year == self.selected_year
-        ]
-
-    def update_dashboard(self):
-        """Update all dashboard statistics for the selected period."""
-        if self.data is None:
-            return
-
-        indices = self.get_filtered_indices()
-
-        total_minutes = 0
-        total_distance = 0.0
-        jet_fuel = 0.0
-        piston_fuel = 0.0
-        airports = set()
-
-        for index in indices:
-            flight = self.data.flights[index]
-
-            total_minutes += flight.flight_minutes or 0
-
-            airports.add(flight.departure)
-            airports.add(flight.arrival)
-
-            if index < len(self.data.flight_distances):
-                distance_result = self.data.flight_distances[index]
-
-                if isinstance(distance_result, dict):
-                    distance = distance_result.get("distance_km")
-
-                    if distance is not None:
-                        total_distance += distance
-
-            if index < len(self.data.fuel_results):
-                fuel_result = self.data.fuel_results[index]
-
-                if isinstance(fuel_result, dict):
-                    fuel = fuel_result.get("fuel")
-                    unit = fuel_result.get("unit")
-
-                    if fuel is not None:
-                        if unit == "kg/h":
-                            jet_fuel += fuel
-                        elif unit == "L/h":
-                            piston_fuel += fuel
-
-        self.flights_card.set_value(
-            f"{len(indices):,}"
-        )
-
-        self.time_card.set_value(
-            format_hours(total_minutes)
-        )
-
-        self.distance_card.set_value(
-            f"{total_distance:,.1f} km"
-        )
-
-        self.jet_fuel_card.set_value(
-            f"{jet_fuel:,.1f} kg"
-        )
-
-        self.piston_fuel_card.set_value(
-            f"{piston_fuel:,.1f} L"
-        )
-
-        self.airports_card.set_value(
-            f"{len(airports):,}"
-        )
-
-        flights = [
-            self.data.flights[index]
-            for index in indices
-        ]
-
-        self.update_aircraft(flights)
-
     def clear_aircraft(self):
-        """
-        Remove every aircraft row.
+        """Remove aircraft rows."""
 
-        Each row is a QWidget rather than a bare layout, which means
-        Qt can reliably remove the complete row and all of its labels.
-        """
-        while self.aircraft_layout.count() > 0:
-            item = self.aircraft_layout.takeAt(0)
+        while (
+            self.aircraft_layout.count()
+            > 0
+        ):
+            item = (
+                self.aircraft_layout.takeAt(
+                    0
+                )
+            )
 
             widget = item.widget()
 
             if widget is not None:
                 widget.deleteLater()
 
-    def update_aircraft(self, flights):
-        """Update aircraft summary for the selected period."""
+    def update_aircraft(
+        self,
+        data,
+    ):
+        """Update aircraft summary."""
+
         self.clear_aircraft()
+
+        database = FuelDatabase()
 
         aircraft_counts = {}
         aircraft_times = {}
 
-        for flight in flights:
-            aircraft = self.database.normalize_type(
-                flight.aircraft
+        for flight in data.flights:
+
+            aircraft = (
+                database.normalize_type(
+                    flight.aircraft
+                )
             )
 
-            aircraft_counts[aircraft] = (
-                aircraft_counts.get(aircraft, 0) + 1
+            aircraft_counts[
+                aircraft
+            ] = (
+                aircraft_counts.get(
+                    aircraft,
+                    0,
+                )
+                + 1
             )
 
-            aircraft_times[aircraft] = (
-                aircraft_times.get(aircraft, 0)
-                + (flight.flight_minutes or 0)
+            aircraft_times[
+                aircraft
+            ] = (
+                aircraft_times.get(
+                    aircraft,
+                    0,
+                )
+                + flight.flight_minutes
             )
-
-        if not aircraft_counts:
-            label = QLabel("No aircraft data available.")
-            label.setObjectName("emptyLabel")
-            self.aircraft_layout.addWidget(label)
-            return
 
         for aircraft in sorted(
             aircraft_counts,
@@ -493,265 +498,54 @@ class DashboardPage(QWidget):
                 item,
             ),
         ):
-            # IMPORTANT:
-            # Use a QWidget as the row container. This ensures
-            # that removing the row also removes all three labels.
-            row_widget = QWidget()
-            row = QHBoxLayout(row_widget)
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(12)
 
-            aircraft_label = QLabel(aircraft)
-            aircraft_label.setObjectName("aircraftName")
+            row = QHBoxLayout()
+
+            aircraft_label = QLabel(
+                aircraft
+            )
+
+            aircraft_label.setObjectName(
+                "aircraftName"
+            )
 
             count_label = QLabel(
-                f"{aircraft_counts[aircraft]:,} flights"
+                f"{aircraft_counts[aircraft]} flights"
             )
-            count_label.setObjectName("aircraftCount")
+
+            count_label.setObjectName(
+                "aircraftCount"
+            )
 
             time_label = QLabel(
                 format_hours(
-                    aircraft_times[aircraft]
+                    aircraft_times[
+                        aircraft
+                    ]
                 )
             )
-            time_label.setObjectName("aircraftTime")
 
-            row.addWidget(aircraft_label)
-            row.addStretch()
-            row.addWidget(count_label)
-            row.addWidget(time_label)
-
-            self.aircraft_layout.addWidget(row_widget)
-
-
-# =========================================================
-# SHARED STATISTICS PAGE HELPERS
-# =========================================================
-
-
-class YearStatisticsPage(QWidget):
-    """Base class for pages whose statistics can be filtered by year."""
-
-    def __init__(self, title, subtitle):
-        super().__init__()
-
-        self.data = None
-        self.selected_year = None
-
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(40, 35, 40, 35)
-        self.layout.setSpacing(15)
-
-        header = QVBoxLayout()
-
-        page_title = QLabel(title)
-        page_title.setObjectName("pageTitle")
-
-        page_subtitle = QLabel(subtitle)
-        page_subtitle.setObjectName("pageSubtitle")
-
-        header.addWidget(page_title)
-        header.addWidget(page_subtitle)
-
-        self.layout.addLayout(header)
-
-        self.year_tabs = QTabWidget()
-        self.year_tabs.setObjectName("yearTabs")
-        self.year_tabs.currentChanged.connect(
-            self.year_tab_changed
-        )
-
-        self.layout.addWidget(self.year_tabs)
-
-    def set_data(self, data):
-        self.data = data
-        self.build_year_tabs()
-
-    def build_year_tabs(self):
-        self.year_tabs.blockSignals(True)
-        self.year_tabs.clear()
-
-        if self.data is None or not self.data.flights:
-            self.year_tabs.addTab(QWidget(), "ALL")
-            self.selected_year = None
-            self.year_tabs.blockSignals(False)
-            self.update_page()
-            return
-
-        years = sorted(
-            {
-                flight.date.year
-                for flight in self.data.flights
-            },
-            reverse=True,
-        )
-
-        for year in years:
-            self.year_tabs.addTab(
-                QWidget(),
-                str(year),
+            time_label.setObjectName(
+                "aircraftTime"
             )
 
-        self.year_tabs.addTab(
-            QWidget(),
-            "ALL",
-        )
+            row.addWidget(
+                aircraft_label
+            )
 
-        self.selected_year = years[0]
+            row.addStretch()
 
-        self.year_tabs.setCurrentIndex(0)
-        self.year_tabs.blockSignals(False)
+            row.addWidget(
+                count_label
+            )
 
-        # Explicit initial update; currentChanged is blocked above.
-        self.update_page()
+            row.addWidget(
+                time_label
+            )
 
-    def year_tab_changed(self, index):
-        if index < 0 or self.data is None:
-            return
-
-        text = self.year_tabs.tabText(index)
-
-        if text == "ALL":
-            self.selected_year = None
-        else:
-            try:
-                self.selected_year = int(text)
-            except ValueError:
-                self.selected_year = None
-
-        self.update_page()
-
-    def get_filtered_indices(self):
-        if self.data is None:
-            return []
-
-        if self.selected_year is None:
-            return list(range(len(self.data.flights)))
-
-        return [
-            index
-            for index, flight in enumerate(self.data.flights)
-            if flight.date.year == self.selected_year
-        ]
-
-    def get_filtered_flights(self):
-        return [
-            self.data.flights[index]
-            for index in self.get_filtered_indices()
-        ]
-
-    def update_page(self):
-        """Implemented by subclasses."""
-        pass
-
-
-def create_table(headers, object_name="statsTable"):
-    """Create a consistent FlightStats statistics table."""
-    table = QTableWidget()
-    table.setObjectName(object_name)
-    table.setColumnCount(len(headers))
-    table.setHorizontalHeaderLabels(headers)
-
-    table.setSortingEnabled(True)
-    table.setSelectionBehavior(
-        QTableWidget.SelectRows
-    )
-    table.setSelectionMode(
-        QTableWidget.SingleSelection
-    )
-    table.setEditTriggers(
-        QTableWidget.NoEditTriggers
-    )
-    table.verticalHeader().setVisible(False)
-
-    header = table.horizontalHeader()
-    header.setStretchLastSection(True)
-
-    for column in range(len(headers)):
-        header.setSectionResizeMode(
-            column,
-            QHeaderView.ResizeToContents,
-        )
-
-    return table
-
-
-def set_table_item(table, row, column, value):
-    """Set one table cell."""
-    item = QTableWidgetItem(str(value))
-    table.setItem(row, column, item)
-
-
-def calculate_fuel_totals(data, indices):
-    """Return estimated jet and piston fuel totals."""
-    jet = 0.0
-    piston = 0.0
-
-    for index in indices:
-        if index >= len(data.fuel_results):
-            continue
-
-        result = data.fuel_results[index]
-
-        if not isinstance(result, dict):
-            continue
-
-        fuel = result.get("fuel")
-        unit = result.get("unit")
-
-        if fuel is None:
-            continue
-
-        if unit == "kg/h":
-            jet += fuel
-        elif unit == "L/h":
-            piston += fuel
-
-    return jet, piston
-
-
-def calculate_distance(data, indices):
-    """Return total calculated distance for selected flights."""
-    total = 0.0
-
-    for index in indices:
-        if index >= len(data.flight_distances):
-            continue
-
-        result = data.flight_distances[index]
-
-        if not isinstance(result, dict):
-            continue
-
-        distance = result.get("distance_km")
-
-        if distance is not None:
-            total += distance
-
-    return total
-
-
-def calculate_sector_speed(data, index):
-    """Calculate average sector speed from distance and flight time."""
-    if index >= len(data.flight_distances):
-        return None
-
-    flight = data.flights[index]
-
-    if not flight.flight_minutes:
-        return None
-
-    result = data.flight_distances[index]
-
-    if not isinstance(result, dict):
-        return None
-
-    distance = result.get("distance_km")
-
-    if distance is None:
-        return None
-
-    return distance / flight.flight_minutes * 60.0
+            self.aircraft_layout.addLayout(
+                row
+            )
 
 
 # =========================================================
@@ -759,22 +553,70 @@ def calculate_sector_speed(data, index):
 # =========================================================
 
 
-class LogbookPage(YearStatisticsPage):
+class LogbookPage(QWidget):
     """Searchable and sortable logbook."""
 
     def __init__(self):
-        super().__init__(
-            "Logbook",
-            "Browse and search your flight history",
+        super().__init__()
+
+        self.data = None
+
+        self.database = FuelDatabase()
+
+        layout = QVBoxLayout(
+            self
         )
+
+        layout.setContentsMargins(
+            40,
+            35,
+            40,
+            35,
+        )
+
+        layout.setSpacing(
+            15
+        )
+
+        title = QLabel(
+            "Logbook"
+        )
+
+        title.setObjectName(
+            "pageTitle"
+        )
+
+        subtitle = QLabel(
+            "Browse and search your flight history"
+        )
+
+        subtitle.setObjectName(
+            "pageSubtitle"
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        layout.addWidget(
+            subtitle
+        )
+
+        # -------------------------------------------------
+        # FILTERS
+        # -------------------------------------------------
 
         filter_bar = QHBoxLayout()
 
         self.search_box = QLineEdit()
+
         self.search_box.setPlaceholderText(
             "Search date, airport, aircraft, registration..."
         )
-        self.search_box.setObjectName("searchBox")
+
+        self.search_box.setObjectName(
+            "searchBox"
+        )
 
         filter_bar.addWidget(
             self.search_box,
@@ -782,7 +624,11 @@ class LogbookPage(YearStatisticsPage):
         )
 
         self.aircraft_filter = QComboBox()
-        self.aircraft_filter.setObjectName("filterBox")
+
+        self.aircraft_filter.setObjectName(
+            "filterBox"
+        )
+
         self.aircraft_filter.addItem(
             "All aircraft"
         )
@@ -791,15 +637,37 @@ class LogbookPage(YearStatisticsPage):
             self.aircraft_filter
         )
 
-        self.layout.addLayout(filter_bar)
+        layout.addLayout(
+            filter_bar
+        )
 
-        self.result_label = QLabel("0 flights")
-        self.result_label.setObjectName("statusLabel")
-        self.layout.addWidget(
+        self.result_label = QLabel(
+            "0 flights"
+        )
+
+        self.result_label.setObjectName(
+            "statusLabel"
+        )
+
+        layout.addWidget(
             self.result_label
         )
 
-        self.table = create_table(
+        # -------------------------------------------------
+        # TABLE
+        # -------------------------------------------------
+
+        self.table = QTableWidget()
+
+        self.table.setObjectName(
+            "logbookTable"
+        )
+
+        self.table.setColumnCount(
+            10
+        )
+
+        self.table.setHorizontalHeaderLabels(
             [
                 "Date",
                 "Departure",
@@ -811,11 +679,44 @@ class LogbookPage(YearStatisticsPage):
                 "Flight Time",
                 "Distance",
                 "Fuel",
-            ],
-            "logbookTable",
+            ]
         )
 
-        self.layout.addWidget(
+        self.table.setSortingEnabled(
+            True
+        )
+
+        self.table.setSelectionBehavior(
+            QTableWidget.SelectRows
+        )
+
+        self.table.setSelectionMode(
+            QTableWidget.SingleSelection
+        )
+
+        self.table.setEditTriggers(
+            QTableWidget.NoEditTriggers
+        )
+
+        self.table.verticalHeader().setVisible(
+            False
+        )
+
+        header = (
+            self.table.horizontalHeader()
+        )
+
+        header.setStretchLastSection(
+            True
+        )
+
+        for column in range(9):
+            header.setSectionResizeMode(
+                column,
+                QHeaderView.ResizeToContents,
+            )
+
+        layout.addWidget(
             self.table,
             1,
         )
@@ -828,36 +729,51 @@ class LogbookPage(YearStatisticsPage):
             self.apply_filters
         )
 
-    def set_data(self, data):
+    def set_data(
+        self,
+        data,
+    ):
+        """Load data into the logbook."""
+
         self.data = data
 
-        self.aircraft_filter.blockSignals(True)
+        self.aircraft_filter.blockSignals(
+            True
+        )
+
         self.aircraft_filter.clear()
+
         self.aircraft_filter.addItem(
             "All aircraft"
         )
 
-        aircraft_types = {
-            self.database.normalize_type(
-                flight.aircraft
-            )
-            for flight in data.flights
-        }
+        aircraft_types = set()
 
-        for aircraft in sorted(aircraft_types):
+        for flight in data.flights:
+
+            aircraft_types.add(
+                self.database.normalize_type(
+                    flight.aircraft
+                )
+            )
+
+        for aircraft in sorted(
+            aircraft_types
+        ):
+
             self.aircraft_filter.addItem(
                 aircraft
             )
 
-        self.aircraft_filter.blockSignals(False)
+        self.aircraft_filter.blockSignals(
+            False
+        )
 
-        self.build_year_tabs()
-        self.apply_filters()
-
-    def update_page(self):
         self.apply_filters()
 
     def apply_filters(self):
+        """Apply search/filter criteria."""
+
         if self.data is None:
             return
 
@@ -873,16 +789,21 @@ class LogbookPage(YearStatisticsPage):
 
         matches = []
 
-        for index in self.get_filtered_indices():
-            flight = self.data.flights[index]
+        for index, flight in enumerate(
+            self.data.flights
+        ):
 
-            aircraft = self.database.normalize_type(
-                flight.aircraft
+            aircraft = (
+                self.database.normalize_type(
+                    flight.aircraft
+                )
             )
 
             if (
-                selected_aircraft != "All aircraft"
-                and aircraft != selected_aircraft
+                selected_aircraft
+                != "All aircraft"
+                and aircraft
+                != selected_aircraft
             ):
                 continue
 
@@ -898,22 +819,36 @@ class LogbookPage(YearStatisticsPage):
 
             if (
                 search_text
-                and search_text not in searchable
+                and search_text
+                not in searchable
             ):
                 continue
 
             matches.append(
-                (index, flight)
+                (
+                    index,
+                    flight,
+                )
             )
 
-        self.populate_table(matches)
+        self.populate_table(
+            matches
+        )
 
         self.result_label.setText(
             f"{len(matches):,} flights"
         )
 
-    def populate_table(self, matches):
-        self.table.setSortingEnabled(False)
+    def populate_table(
+        self,
+        matches,
+    ):
+        """Populate logbook table."""
+
+        self.table.setSortingEnabled(
+            False
+        )
+
         self.table.setRowCount(
             len(matches)
         )
@@ -923,910 +858,854 @@ class LogbookPage(YearStatisticsPage):
             flight,
         ) in enumerate(matches):
 
-            distance = None
+            distance = (
+                self.data.flight_distances[
+                    original_index
+                ][
+                    "distance_km"
+                ]
+            )
 
-            if original_index < len(
-                self.data.flight_distances
-            ):
-                result = self.data.flight_distances[
+            fuel_result = (
+                self.data.fuel_results[
                     original_index
                 ]
+            )
 
-                if isinstance(result, dict):
-                    distance = result.get(
-                        "distance_km"
-                    )
+            fuel = fuel_result.get(
+                "fuel"
+            )
 
-            fuel = None
-            fuel_unit = None
+            fuel_unit = fuel_result.get(
+                "unit"
+            )
 
-            if original_index < len(
-                self.data.fuel_results
-            ):
-                result = self.data.fuel_results[
-                    original_index
-                ]
-
-                if isinstance(result, dict):
-                    fuel = result.get("fuel")
-                    fuel_unit = result.get("unit")
-
-            set_table_item(
-                self.table,
+            self.set_item(
                 row,
                 0,
-                flight.date.strftime("%Y-%m-%d"),
+                flight.date.strftime(
+                    "%Y-%m-%d"
+                ),
             )
-            set_table_item(
-                self.table,
+
+            self.set_item(
                 row,
                 1,
                 flight.departure,
             )
-            set_table_item(
-                self.table,
+
+            departure_time = (
+                flight.departure_time
+            )
+
+            self.set_item(
                 row,
                 2,
-                (
-                    flight.departure_time.strftime(
-                        "%H:%M"
-                    )
-                    if flight.departure_time
-                    else "—"
-                ),
+                departure_time.strftime(
+                    "%H:%M"
+                )
+                if departure_time
+                else "—",
             )
-            set_table_item(
-                self.table,
+
+            self.set_item(
                 row,
                 3,
                 flight.arrival,
             )
-            set_table_item(
-                self.table,
+
+            arrival_time = (
+                flight.arrival_time
+            )
+
+            self.set_item(
                 row,
                 4,
-                (
-                    flight.arrival_time.strftime(
-                        "%H:%M"
-                    )
-                    if flight.arrival_time
-                    else "—"
-                ),
+                arrival_time.strftime(
+                    "%H:%M"
+                )
+                if arrival_time
+                else "—",
             )
-            set_table_item(
-                self.table,
-                row,
-                5,
+
+            aircraft = (
                 self.database.normalize_type(
                     flight.aircraft
-                ),
+                )
             )
-            set_table_item(
-                self.table,
+
+            self.set_item(
+                row,
+                5,
+                aircraft,
+            )
+
+            self.set_item(
                 row,
                 6,
                 flight.registration,
             )
-            set_table_item(
-                self.table,
+
+            self.set_item(
                 row,
                 7,
                 format_hours(
                     flight.flight_minutes
                 ),
             )
-            set_table_item(
-                self.table,
+
+            distance_text = (
+                "—"
+                if distance is None
+                else (
+                    f"{distance:,.1f} km"
+                )
+            )
+
+            self.set_item(
                 row,
                 8,
-                (
-                    "—"
-                    if distance is None
-                    else f"{distance:,.1f} km"
-                ),
+                distance_text,
             )
-            set_table_item(
-                self.table,
+
+            fuel_text = (
+                "—"
+                if fuel is None
+                else (
+                    f"{fuel:,.1f} "
+                    f"{display_fuel_unit(fuel_unit)}"
+                )
+            )
+
+            self.set_item(
                 row,
                 9,
-                (
-                    "—"
-                    if fuel is None
-                    else (
-                        f"{fuel:,.1f} "
-                        f"{display_fuel_unit(fuel_unit)}"
+                fuel_text,
+            )
+
+        self.table.setSortingEnabled(
+            True
+        )
+
+    def set_item(
+        self,
+        row,
+        column,
+        text,
+    ):
+        """Set table item."""
+
+        item = QTableWidgetItem(
+            str(text)
+        )
+
+        self.table.setItem(
+            row,
+            column,
+            item
+        )
+
+
+# =========================================================
+# PLACEHOLDER PAGE
+# =========================================================
+
+
+class PlaceholderPage(QWidget):
+    """Temporary page."""
+
+    def __init__(
+        self,
+        title,
+    ):
+        super().__init__()
+
+        layout = QVBoxLayout(
+            self
+        )
+
+        layout.setContentsMargins(
+            40,
+            40,
+            40,
+            40,
+        )
+
+        label = QLabel(
+            title
+        )
+
+        label.setObjectName(
+            "pageTitle"
+        )
+
+        layout.addWidget(
+            label
+        )
+
+        layout.addStretch()
+
+
+# =========================================================
+# MAIN WINDOW
+# =========================================================
+
+
+class MainWindow(QMainWindow):
+    """Main FlightStats application."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle(
+            "FlightStats"
+        )
+
+        self.resize(
+            1300,
+            850,
+        )
+
+        self.data = None
+
+        self.loader_thread = None
+        self.loader_worker = None
+
+        # -------------------------------------------------
+        # CENTRAL WIDGET
+        # -------------------------------------------------
+
+        central = QWidget()
+
+        self.setCentralWidget(
+            central
+        )
+
+        main_layout = QHBoxLayout(
+            central
+        )
+
+        main_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        main_layout.setSpacing(
+            0
+        )
+
+        # -------------------------------------------------
+        # SIDEBAR
+        # -------------------------------------------------
+
+        sidebar = QFrame()
+
+        sidebar.setObjectName(
+            "sidebar"
+        )
+
+        sidebar.setFixedWidth(
+            220
+        )
+
+        sidebar_layout = QVBoxLayout(
+            sidebar
+        )
+
+        sidebar_layout.setContentsMargins(
+            15,
+            25,
+            15,
+            25,
+        )
+
+        sidebar_layout.setSpacing(
+            8
+        )
+
+        logo = QLabel(
+            "✈  FlightStats"
+        )
+
+        logo.setObjectName(
+            "logo"
+        )
+
+        sidebar_layout.addWidget(
+            logo
+        )
+
+        sidebar_layout.addSpacing(
+            25
+        )
+
+        # -------------------------------------------------
+        # PAGES
+        # -------------------------------------------------
+
+        self.pages = QStackedWidget()
+
+        self.dashboard_page = (
+            DashboardPage()
+        )
+
+        self.logbook_page = (
+            LogbookPage()
+        )
+
+        self.aircraft_page = (
+            PlaceholderPage(
+                "Aircraft"
+            )
+        )
+
+        self.airports_page = (
+            PlaceholderPage(
+                "Airports"
+            )
+        )
+
+        self.fuel_page = (
+            PlaceholderPage(
+                "Fuel"
+            )
+        )
+
+        self.performance_page = (
+            PlaceholderPage(
+                "Performance"
+            )
+        )
+
+        self.pages.addWidget(
+            self.dashboard_page
+        )
+
+        self.pages.addWidget(
+            self.logbook_page
+        )
+
+        self.pages.addWidget(
+            self.aircraft_page
+        )
+
+        self.pages.addWidget(
+            self.airports_page
+        )
+
+        self.pages.addWidget(
+            self.fuel_page
+        )
+
+        self.pages.addWidget(
+            self.performance_page
+        )
+
+        buttons = [
+            ("Dashboard", 0),
+            ("Logbook", 1),
+            ("Aircraft", 2),
+            ("Airports", 3),
+            ("Fuel", 4),
+            ("Performance", 5),
+        ]
+
+        for text, index in buttons:
+
+            button = QPushButton(
+                text
+            )
+
+            button.setObjectName(
+                "navigationButton"
+            )
+
+            button.setCursor(
+                Qt.PointingHandCursor
+            )
+
+            button.clicked.connect(
+                lambda checked=False,
+                i=index: (
+                    self.pages.setCurrentIndex(
+                        i
                     )
-                ),
-            )
-
-        self.table.setSortingEnabled(True)
-
-
-# =========================================================
-# AIRCRAFT PAGE
-# =========================================================
-
-
-class AircraftPage(YearStatisticsPage):
-    """Aircraft statistics for the selected year."""
-
-    def __init__(self):
-        super().__init__(
-            "Aircraft",
-            "Aircraft utilization and performance",
-        )
-
-        self.table = create_table(
-            [
-                "Aircraft",
-                "Flights",
-                "Flight Time",
-                "Distance",
-                "Avg. Speed",
-                "Jet Fuel",
-                "Piston Fuel",
-            ],
-            "statsTable",
-        )
-
-        self.layout.addWidget(
-            self.table,
-            1,
-        )
-
-    def update_page(self):
-        if self.data is None:
-            return
-
-        indices = self.get_filtered_indices()
-
-        stats = {}
-
-        for index in indices:
-            flight = self.data.flights[index]
-            aircraft = self.database.normalize_type(
-                flight.aircraft
-            )
-
-            if aircraft not in stats:
-                stats[aircraft] = {
-                    "flights": 0,
-                    "minutes": 0,
-                    "distance": 0.0,
-                    "speed_total": 0.0,
-                    "speed_count": 0,
-                    "jet": 0.0,
-                    "piston": 0.0,
-                }
-
-            item = stats[aircraft]
-
-            item["flights"] += 1
-            item["minutes"] += (
-                flight.flight_minutes or 0
-            )
-
-            if index < len(
-                self.data.flight_distances
-            ):
-                result = self.data.flight_distances[index]
-
-                if isinstance(result, dict):
-                    distance = result.get(
-                        "distance_km"
-                    )
-
-                    if distance is not None:
-                        item["distance"] += distance
-
-            speed = calculate_sector_speed(
-                self.data,
-                index,
-            )
-
-            if speed is not None:
-                item["speed_total"] += speed
-                item["speed_count"] += 1
-
-            if index < len(
-                self.data.fuel_results
-            ):
-                result = self.data.fuel_results[index]
-
-                if isinstance(result, dict):
-                    fuel = result.get("fuel")
-                    unit = result.get("unit")
-
-                    if fuel is not None:
-                        if unit == "kg/h":
-                            item["jet"] += fuel
-                        elif unit == "L/h":
-                            item["piston"] += fuel
-
-        self.table.setSortingEnabled(False)
-        self.table.setRowCount(
-            len(stats)
-        )
-
-        for row, aircraft in enumerate(
-            sorted(
-                stats,
-                key=lambda name: (
-                    -stats[name]["flights"],
-                    name,
-                ),
-            )
-        ):
-            item = stats[aircraft]
-
-            average_speed = (
-                item["speed_total"]
-                / item["speed_count"]
-                if item["speed_count"]
-                else None
-            )
-
-            set_table_item(
-                self.table,
-                row,
-                0,
-                aircraft,
-            )
-            set_table_item(
-                self.table,
-                row,
-                1,
-                f'{item["flights"]:,}',
-            )
-            set_table_item(
-                self.table,
-                row,
-                2,
-                format_hours(
-                    item["minutes"]
-                ),
-            )
-            set_table_item(
-                self.table,
-                row,
-                3,
-                f'{item["distance"]:,.1f} km',
-            )
-            set_table_item(
-                self.table,
-                row,
-                4,
-                (
-                    "—"
-                    if average_speed is None
-                    else f"{average_speed:,.1f} km/h"
-                ),
-            )
-            set_table_item(
-                self.table,
-                row,
-                5,
-                f'{item["jet"]:,.1f} kg',
-            )
-            set_table_item(
-                self.table,
-                row,
-                6,
-                f'{item["piston"]:,.1f} L',
-            )
-
-        self.table.setSortingEnabled(True)
-
-
-# =========================================================
-# AIRPORTS PAGE
-# =========================================================
-
-
-class AirportsPage(YearStatisticsPage):
-    """Airport usage statistics for the selected year."""
-
-    def __init__(self):
-        super().__init__(
-            "Airports",
-            "Airport activity and route usage",
-        )
-
-        self.table = create_table(
-            [
-                "Airport",
-                "Departures",
-                "Arrivals",
-                "Total",
-                "Routes",
-            ],
-            "statsTable",
-        )
-
-        self.layout.addWidget(
-            self.table,
-            1,
-        )
-
-    def update_page(self):
-        if self.data is None:
-            return
-
-        indices = self.get_filtered_indices()
-
-        stats = {}
-
-        for index in indices:
-            flight = self.data.flights[index]
-            departure = flight.departure
-            arrival = flight.arrival
-
-            if departure not in stats:
-                stats[departure] = {
-                    "departures": 0,
-                    "arrivals": 0,
-                    "routes": set(),
-                }
-
-            if arrival not in stats:
-                stats[arrival] = {
-                    "departures": 0,
-                    "arrivals": 0,
-                    "routes": set(),
-                }
-
-            stats[departure]["departures"] += 1
-            stats[departure]["routes"].add(arrival)
-
-            stats[arrival]["arrivals"] += 1
-            stats[arrival]["routes"].add(departure)
-
-        self.table.setSortingEnabled(False)
-        self.table.setRowCount(
-            len(stats)
-        )
-
-        for row, airport in enumerate(
-            sorted(
-                stats,
-                key=lambda code: (
-                    -(
-                        stats[code]["departures"]
-                        + stats[code]["arrivals"]
-                    ),
-                    code,
-                ),
-            )
-        ):
-            item = stats[airport]
-
-            departures = item["departures"]
-            arrivals = item["arrivals"]
-            total = departures + arrivals
-
-            set_table_item(
-                self.table,
-                row,
-                0,
-                airport,
-            )
-            set_table_item(
-                self.table,
-                row,
-                1,
-                f"{departures:,}",
-            )
-            set_table_item(
-                self.table,
-                row,
-                2,
-                f"{arrivals:,}",
-            )
-            set_table_item(
-                self.table,
-                row,
-                3,
-                f"{total:,}",
-            )
-            set_table_item(
-                self.table,
-                row,
-                4,
-                f'{len(item["routes"]):,}',
-            )
-
-        self.table.setSortingEnabled(True)
-
-
-# =========================================================
-# FUEL PAGE
-# =========================================================
-
-
-class FuelPage(YearStatisticsPage):
-    """Fuel statistics for the selected year."""
-
-    def __init__(self):
-        super().__init__(
-            "Fuel",
-            "Estimated fuel consumption",
-        )
-
-        cards = QGridLayout()
-        cards.setSpacing(15)
-
-        self.jet_card = MetricCard(
-            "Jet fuel"
-        )
-        self.piston_card = MetricCard(
-            "Piston fuel"
-        )
-        self.jet_average_card = MetricCard(
-            "Jet fuel / flight"
-        )
-        self.piston_average_card = MetricCard(
-            "Piston fuel / flight"
-        )
-
-        cards.addWidget(
-            self.jet_card,
-            0,
-            0,
-        )
-        cards.addWidget(
-            self.piston_card,
-            0,
-            1,
-        )
-        cards.addWidget(
-            self.jet_average_card,
-            0,
-            2,
-        )
-        cards.addWidget(
-            self.piston_average_card,
-            0,
-            3,
-        )
-
-        self.layout.addLayout(cards)
-
-        section = QLabel(
-            "Fuel by Aircraft"
-        )
-        section.setObjectName(
-            "sectionTitle"
-        )
-        self.layout.addWidget(section)
-
-        self.table = create_table(
-            [
-                "Aircraft",
-                "Flights",
-                "Jet Fuel",
-                "Jet / Flight",
-                "Piston Fuel",
-                "Piston / Flight",
-            ],
-            "statsTable",
-        )
-
-        self.layout.addWidget(
-            self.table,
-            1,
-        )
-
-    def update_page(self):
-        if self.data is None:
-            return
-
-        indices = self.get_filtered_indices()
-        flights = len(indices)
-
-        jet, piston = calculate_fuel_totals(
-            self.data,
-            indices,
-        )
-
-        self.jet_card.set_value(
-            f"{jet:,.1f} kg"
-        )
-        self.piston_card.set_value(
-            f"{piston:,.1f} L"
-        )
-        self.jet_average_card.set_value(
-            (
-                f"{jet / flights:,.1f} kg"
-                if flights
-                else "—"
-            )
-        )
-        self.piston_average_card.set_value(
-            (
-                f"{piston / flights:,.1f} L"
-                if flights
-                else "—"
-            )
-        )
-
-        stats = {}
-
-        for index in indices:
-            flight = self.data.flights[index]
-            aircraft = self.database.normalize_type(
-                flight.aircraft
-            )
-
-            if aircraft not in stats:
-                stats[aircraft] = {
-                    "flights": 0,
-                    "jet": 0.0,
-                    "piston": 0.0,
-                }
-
-            stats[aircraft]["flights"] += 1
-
-            if index < len(
-                self.data.fuel_results
-            ):
-                result = self.data.fuel_results[index]
-
-                if isinstance(result, dict):
-                    fuel = result.get("fuel")
-                    unit = result.get("unit")
-
-                    if fuel is not None:
-                        if unit == "kg/h":
-                            stats[aircraft]["jet"] += fuel
-                        elif unit == "L/h":
-                            stats[aircraft]["piston"] += fuel
-
-        self.table.setSortingEnabled(False)
-        self.table.setRowCount(
-            len(stats)
-        )
-
-        for row, aircraft in enumerate(
-            sorted(
-                stats,
-                key=lambda name: (
-                    -stats[name]["flights"],
-                    name,
-                ),
-            )
-        ):
-            item = stats[aircraft]
-            count = item["flights"]
-
-            set_table_item(
-                self.table,
-                row,
-                0,
-                aircraft,
-            )
-            set_table_item(
-                self.table,
-                row,
-                1,
-                f"{count:,}",
-            )
-            set_table_item(
-                self.table,
-                row,
-                2,
-                f'{item["jet"]:,.1f} kg',
-            )
-            set_table_item(
-                self.table,
-                row,
-                3,
-                (
-                    f'{item["jet"] / count:,.1f} kg'
-                    if count
-                    else "—"
-                ),
-            )
-            set_table_item(
-                self.table,
-                row,
-                4,
-                f'{item["piston"]:,.1f} L',
-            )
-            set_table_item(
-                self.table,
-                row,
-                5,
-                (
-                    f'{item["piston"] / count:,.1f} L'
-                    if count
-                    else "—"
-                ),
-            )
-
-        self.table.setSortingEnabled(True)
-
-
-# =========================================================
-# PERFORMANCE PAGE
-# =========================================================
-
-
-class PerformancePage(YearStatisticsPage):
-    """Sector performance statistics for the selected year."""
-
-    def __init__(self):
-        super().__init__(
-            "Performance",
-            "Sector speed and flight-time analysis",
-        )
-
-        cards = QGridLayout()
-        cards.setSpacing(15)
-
-        self.average_speed_card = MetricCard(
-            "Average sector speed"
-        )
-        self.fastest_card = MetricCard(
-            "Fastest sector"
-        )
-        self.longest_card = MetricCard(
-            "Longest sector"
-        )
-        self.average_time_card = MetricCard(
-            "Average flight time"
-        )
-
-        cards.addWidget(
-            self.average_speed_card,
-            0,
-            0,
-        )
-        cards.addWidget(
-            self.fastest_card,
-            0,
-            1,
-        )
-        cards.addWidget(
-            self.longest_card,
-            0,
-            2,
-        )
-        cards.addWidget(
-            self.average_time_card,
-            0,
-            3,
-        )
-
-        self.layout.addLayout(cards)
-
-        section = QLabel(
-            "Performance by Aircraft"
-        )
-        section.setObjectName(
-            "sectionTitle"
-        )
-        self.layout.addWidget(section)
-
-        self.table = create_table(
-            [
-                "Aircraft",
-                "Flights",
-                "Flight Time",
-                "Distance",
-                "Avg. Speed",
-                "Fastest Sector",
-            ],
-            "statsTable",
-        )
-
-        self.layout.addWidget(
-            self.table,
-            1,
-        )
-
-    def update_page(self):
-        if self.data is None:
-            return
-
-        indices = self.get_filtered_indices()
-
-        speeds = []
-        longest_distance = 0.0
-        fastest_speed = None
-
-        total_minutes = 0
-        valid_distance_count = 0
-
-        stats = {}
-
-        for index in indices:
-            flight = self.data.flights[index]
-            aircraft = self.database.normalize_type(
-                flight.aircraft
-            )
-
-            total_minutes += (
-                flight.flight_minutes or 0
-            )
-
-            if aircraft not in stats:
-                stats[aircraft] = {
-                    "flights": 0,
-                    "minutes": 0,
-                    "distance": 0.0,
-                    "speed_total": 0.0,
-                    "speed_count": 0,
-                    "fastest": None,
-                }
-
-            item = stats[aircraft]
-            item["flights"] += 1
-            item["minutes"] += (
-                flight.flight_minutes or 0
-            )
-
-            if index < len(
-                self.data.flight_distances
-            ):
-                result = self.data.flight_distances[index]
-
-                if isinstance(result, dict):
-                    distance = result.get(
-                        "distance_km"
-                    )
-
-                    if distance is not None:
-                        item["distance"] += distance
-                        longest_distance = max(
-                            longest_distance,
-                            distance,
-                        )
-                        valid_distance_count += 1
-
-            speed = calculate_sector_speed(
-                self.data,
-                index,
-            )
-
-            if speed is not None:
-                speeds.append(speed)
-                item["speed_total"] += speed
-                item["speed_count"] += 1
-
-                if (
-                    item["fastest"] is None
-                    or speed > item["fastest"]
-                ):
-                    item["fastest"] = speed
-
-                if (
-                    fastest_speed is None
-                    or speed > fastest_speed
-                ):
-                    fastest_speed = speed
-
-        average_speed = (
-            sum(speeds) / len(speeds)
-            if speeds
-            else None
-        )
-
-        average_time = (
-            total_minutes / len(indices)
-            if indices
-            else None
-        )
-
-        self.average_speed_card.set_value(
-            (
-                f"{average_speed:,.1f} km/h"
-                if average_speed is not None
-                else "—"
-            )
-        )
-
-        self.fastest_card.set_value(
-            (
-                f"{fastest_speed:,.1f} km/h"
-                if fastest_speed is not None
-                else "—"
-            )
-        )
-
-        self.longest_card.set_value(
-            (
-                f"{longest_distance:,.1f} km"
-                if valid_distance_count
-                else "—"
-            )
-        )
-
-        self.average_time_card.set_value(
-            (
-                format_hours(
-                    average_time
                 )
-                if average_time is not None
-                else "—"
             )
+
+            sidebar_layout.addWidget(
+                button
+            )
+
+        sidebar_layout.addStretch()
+
+        version = QLabel(
+            "FlightStats\n"
+            "Development Version"
         )
 
-        self.table.setSortingEnabled(False)
-        self.table.setRowCount(
-            len(stats)
+        version.setObjectName(
+            "versionLabel"
         )
 
-        for row, aircraft in enumerate(
-            sorted(
-                stats,
-                key=lambda name: (
-                    -stats[name]["flights"],
-                    name,
-                ),
-            )
+        sidebar_layout.addWidget(
+            version
+        )
+
+        # -------------------------------------------------
+        # CONTENT
+        # -------------------------------------------------
+
+        content = QFrame()
+
+        content.setObjectName(
+            "content"
+        )
+
+        content_layout = QVBoxLayout(
+            content
+        )
+
+        content_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        content_layout.addWidget(
+            self.pages
+        )
+
+        main_layout.addWidget(
+            sidebar
+        )
+
+        main_layout.addWidget(
+            content
+        )
+
+        # -------------------------------------------------
+        # SIGNALS
+        # -------------------------------------------------
+
+        self.dashboard_page.refresh_button.clicked.connect(
+            self.load_data
+        )
+
+        # -------------------------------------------------
+        # INITIAL LOAD
+        # -------------------------------------------------
+
+        self.load_data()
+
+    # =====================================================
+    # DATA LOADING
+    # =====================================================
+
+    def load_data(self):
+        """
+        Start asynchronous FlightStats data loading.
+        """
+
+        if (
+            self.loader_thread is not None
+            and self.loader_thread.isRunning()
         ):
-            item = stats[aircraft]
+            return
 
-            average = (
-                item["speed_total"]
-                / item["speed_count"]
-                if item["speed_count"]
-                else None
-            )
+        self.dashboard_page.refresh_button.setEnabled(
+            False
+        )
 
-            set_table_item(
-                self.table,
-                row,
-                0,
-                aircraft,
-            )
-            set_table_item(
-                self.table,
-                row,
-                1,
-                f'{item["flights"]:,}',
-            )
-            set_table_item(
-                self.table,
-                row,
-                2,
-                format_hours(
-                    item["minutes"]
-                ),
-            )
-            set_table_item(
-                self.table,
-                row,
-                3,
-                f'{item["distance"]:,.1f} km',
-            )
-            set_table_item(
-                self.table,
-                row,
-                4,
-                (
-                    "—"
-                    if average is None
-                    else f"{average:,.1f} km/h"
-                ),
-            )
-            set_table_item(
-                self.table,
-                row,
-                5,
-                (
-                    "—"
-                    if item["fastest"] is None
-                    else f'{item["fastest"]:,.1f} km/h'
-                ),
-            )
+        self.dashboard_page.progress_bar.setValue(
+            0
+        )
 
-        self.table.setSortingEnabled(True)
+        self.dashboard_page.status_label.setText(
+            "Starting..."
+        )
+
+        # -------------------------------------------------
+        # CREATE THREAD
+        # -------------------------------------------------
+
+        self.loader_thread = QThread()
+
+        self.loader_worker = (
+            DataLoaderWorker(
+                LOGBOOK
+            )
+        )
+
+        self.loader_worker.moveToThread(
+            self.loader_thread
+        )
+
+        # -------------------------------------------------
+        # SIGNALS
+        # -------------------------------------------------
+
+        self.loader_thread.started.connect(
+            self.loader_worker.run
+        )
+
+        self.loader_worker.progress.connect(
+            self.update_loading_progress
+        )
+
+        self.loader_worker.finished.connect(
+            self.data_loaded
+        )
+
+        self.loader_worker.error.connect(
+            self.loading_error
+        )
+
+        self.loader_worker.finished.connect(
+            self.loader_thread.quit
+        )
+
+        self.loader_worker.error.connect(
+            self.loader_thread.quit
+        )
+
+        self.loader_thread.finished.connect(
+            self.loading_finished
+        )
+
+        # -------------------------------------------------
+        # START
+        # -------------------------------------------------
+
+        self.loader_thread.start()
+
+    def update_loading_progress(
+        self,
+        percent,
+        message,
+    ):
+        """Update GUI progress."""
+
+        self.dashboard_page.progress_bar.setValue(
+            percent
+        )
+
+        self.dashboard_page.status_label.setText(
+            message
+        )
+
+    def data_loaded(
+        self,
+        data,
+    ):
+        """Receive completed data from worker."""
+
+        self.data = data
+
+        self.update_dashboard()
+
+        self.logbook_page.set_data(
+            self.data
+        )
+
+    def loading_error(
+        self,
+        message,
+    ):
+        """Display loading error."""
+
+        self.dashboard_page.progress_bar.setValue(
+            0
+        )
+
+        self.dashboard_page.status_label.setText(
+            f"Error loading logbook: {message}"
+        )
+
+        print(
+            "\nFlightStats error:"
+        )
+
+        print(message)
+
+    def loading_finished(self):
+        """Clean up worker/thread."""
+
+        self.dashboard_page.refresh_button.setEnabled(
+            True
+        )
+
+        if self.loader_worker is not None:
+            self.loader_worker.deleteLater()
+
+        if self.loader_thread is not None:
+            self.loader_thread.deleteLater()
+
+        self.loader_worker = None
+        self.loader_thread = None
+
+    # =====================================================
+    # DASHBOARD
+    # =====================================================
+
+    def update_dashboard(self):
+        """Update Dashboard from shared data."""
+
+        if self.data is None:
+            return
+
+        self.dashboard_page.flights_card.set_value(
+            f"{self.data.total_flights:,}"
+        )
+
+        self.dashboard_page.time_card.set_value(
+            format_hours(
+                self.data.total_flight_minutes
+            )
+        )
+
+        self.dashboard_page.distance_card.set_value(
+            f"{self.data.total_distance_km:,.1f} km"
+        )
+
+        fuel_totals = (
+            self.data.fuel_totals
+        )
+
+        jet_fuel = fuel_totals.get(
+            "kg/h",
+            0,
+        )
+
+        piston_fuel = fuel_totals.get(
+            "L/h",
+            0,
+        )
+
+        self.dashboard_page.jet_fuel_card.set_value(
+            f"{jet_fuel:,.1f} kg"
+        )
+
+        self.dashboard_page.piston_fuel_card.set_value(
+            f"{piston_fuel:,.1f} L"
+        )
+
+        self.dashboard_page.airports_card.set_value(
+            f"{len(self.data.airports):,}"
+        )
+
+        self.dashboard_page.update_aircraft(
+            self.data
+        )
 
 
 # =========================================================
-# MAIN
+# STYLE
 # =========================================================
+
+
+def apply_style(app):
+    """Apply FlightStats visual style."""
+
+    app.setStyleSheet(
+        """
+        QMainWindow {
+            background: #f4f6f8;
+        }
+
+        QWidget {
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            color: #1f2937;
+        }
+
+        #sidebar {
+            background: #111827;
+        }
+
+        #logo {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            padding-left: 10px;
+        }
+
+        #navigationButton {
+            background: transparent;
+            color: #d1d5db;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        #navigationButton:hover {
+            background: #1f2937;
+            color: white;
+        }
+
+        #navigationButton:pressed {
+            background: #374151;
+        }
+
+        #content {
+            background: #f4f6f8;
+        }
+
+        #pageTitle {
+            font-size: 30px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        #pageSubtitle {
+            font-size: 15px;
+            color: #6b7280;
+        }
+
+        #sectionTitle {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        #card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+
+        #cardLabel {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        #cardValue {
+            color: #111827;
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        #refreshButton {
+            background: #111827;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        #refreshButton:hover {
+            background: #1f2937;
+        }
+
+        #refreshButton:pressed {
+            background: #374151;
+        }
+
+        #refreshButton:disabled {
+            background: #9ca3af;
+        }
+
+        #statusLabel {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        #progressBar {
+            height: 8px;
+            border: none;
+            border-radius: 4px;
+            background: #e5e7eb;
+        }
+
+        #progressBar::chunk {
+            border-radius: 4px;
+            background: #111827;
+        }
+
+        #loadingFrame {
+            background: transparent;
+        }
+
+        #aircraftName {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        #aircraftCount {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        #aircraftTime {
+            color: #374151;
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 70px;
+        }
+
+        #searchBox {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        #searchBox:focus {
+            border: 1px solid #6b7280;
+        }
+
+        #filterBox {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 150px;
+        }
+
+        #logbookTable {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            gridline-color: #eef0f2;
+            selection-background-color: #e5e7eb;
+            selection-color: #111827;
+        }
+
+        #logbookTable QHeaderView::section {
+            background: #f9fafb;
+            color: #4b5563;
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 10px 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        #logbookTable QTableWidgetItem {
+            padding: 8px;
+        }
+
+        #versionLabel {
+            color: #6b7280;
+            font-size: 11px;
+            padding-left: 10px;
+        }
+        """
+    )
+
+
 # =========================================================
 # MAIN
 # =========================================================
