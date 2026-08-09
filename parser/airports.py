@@ -48,6 +48,10 @@ class AirportDatabase:
 
     def __init__(self):
         self.airports = {}
+        # Typed indexes prevent 3-letter IATA codes from being shadowed
+        # by unrelated local/ident codes in the worldwide database.
+        self.iata_airports = {}
+        self.icao_airports = {}
 
         AIRPORT_DATABASE.parent.mkdir(
             parents=True,
@@ -157,26 +161,30 @@ class AirportDatabase:
                     ),
                 }
 
-                identifiers = (
+                # Keep dedicated IATA/ICAO indexes. Flight logbooks use
+                # these standardized identifiers, while local/ident codes
+                # can legitimately collide with a 3-letter IATA code.
+                icao = airport["icao"].strip().upper()
+                iata = airport["iata"].strip().upper()
+
+                if icao:
+                    self.icao_airports.setdefault(icao, airport)
+                    self.airports.setdefault(icao, airport)
+
+                if iata:
+                    self.iata_airports.setdefault(iata, airport)
+                    self.airports.setdefault(iata, airport)
+
+                # Retain the other identifiers as fallbacks.
+                for identifier in (
                     airport["code"],
-                    airport["icao"],
                     airport["gps"],
-                    airport["iata"],
                     airport["local"],
-                )
-
-                for identifier in identifiers:
-
+                ):
                     if not identifier:
                         continue
-
-                    identifier = (
-                        identifier.upper()
-                    )
-
-                    # Keep the first match.
                     self.airports.setdefault(
-                        identifier,
+                        identifier.upper(),
                         airport,
                     )
 
@@ -255,6 +263,10 @@ class AirportDatabase:
                 }
 
                 self.airports[code] = airport
+                if len(code) == 4:
+                    self.icao_airports[code] = airport
+                elif len(code) == 3:
+                    self.iata_airports[code] = airport
 
                 count += 1
 
@@ -279,6 +291,19 @@ class AirportDatabase:
             return None
 
         code = code.strip().upper()
+
+        # Logbooks normally use 3-letter IATA or 4-letter ICAO codes.
+        # Resolve those through their typed indexes first so ambiguous
+        # identifiers such as LIS/NDR cannot select an unrelated airport.
+        if len(code) == 3:
+            airport = self.iata_airports.get(code)
+            if airport:
+                return airport
+
+        if len(code) == 4:
+            airport = self.icao_airports.get(code)
+            if airport:
+                return airport
 
         return self.airports.get(code)
 
@@ -314,6 +339,10 @@ class AirportDatabase:
         }
 
         self.airports[code] = airport
+        if len(code) == 4:
+            self.icao_airports[code] = airport
+        elif len(code) == 3:
+            self.iata_airports[code] = airport
 
         file_exists = (
             CUSTOM_AIRPORT_DATABASE.exists()
