@@ -777,6 +777,7 @@ class LogbookPage(QWidget):
         super().__init__()
 
         self.data = None
+        self.selected_year = None
 
         self.database = FuelDatabase()
 
@@ -817,6 +818,24 @@ class LogbookPage(QWidget):
 
         layout.addWidget(
             subtitle
+        )
+
+        # -------------------------------------------------
+        # YEAR TABS
+        # -------------------------------------------------
+
+        self.year_tabs = QTabWidget()
+
+        self.year_tabs.setObjectName(
+            "yearTabs"
+        )
+
+        self.year_tabs.currentChanged.connect(
+            self.year_tab_changed
+        )
+
+        layout.addWidget(
+            self.year_tabs
         )
 
         # -------------------------------------------------
@@ -950,7 +969,7 @@ class LogbookPage(QWidget):
         self,
         data,
     ):
-        """Load data into the logbook."""
+        """Load data and build the Logbook year tabs."""
 
         self.data = data
 
@@ -967,7 +986,6 @@ class LogbookPage(QWidget):
         aircraft_types = set()
 
         for flight in data.flights:
-
             aircraft_types.add(
                 self.database.normalize_type(
                     flight.aircraft
@@ -977,13 +995,76 @@ class LogbookPage(QWidget):
         for aircraft in sorted(
             aircraft_types
         ):
-
             self.aircraft_filter.addItem(
                 aircraft
             )
 
         self.aircraft_filter.blockSignals(
             False
+        )
+
+        self.build_year_tabs()
+
+    def build_year_tabs(self):
+        """Build one tab for each year in the logbook."""
+
+        self.year_tabs.blockSignals(
+            True
+        )
+
+        self.year_tabs.clear()
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self.data.flights
+            },
+            reverse=True,
+        )
+
+        for year in years:
+            self.year_tabs.addTab(
+                QWidget(),
+                str(year),
+            )
+
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
+        self.selected_year = (
+            years[0]
+            if years
+            else None
+        )
+
+        self.year_tabs.blockSignals(
+            False
+        )
+
+        self.apply_filters()
+
+    def year_tab_changed(
+        self,
+        index,
+    ):
+        """Filter the Logbook to the selected year."""
+
+        if (
+            self.data is None
+            or index < 0
+        ):
+            return
+
+        tab_text = self.year_tabs.tabText(
+            index
+        )
+
+        self.selected_year = (
+            None
+            if tab_text == "ALL"
+            else int(tab_text)
         )
 
         self.apply_filters()
@@ -1009,6 +1090,13 @@ class LogbookPage(QWidget):
         for index, flight in enumerate(
             self.data.flights
         ):
+
+            if (
+                self.selected_year is not None
+                and flight.date.year
+                != self.selected_year
+            ):
+                continue
 
             aircraft = (
                 self.database.normalize_type(
@@ -1101,7 +1189,7 @@ class LogbookPage(QWidget):
                 row,
                 0,
                 flight.date.strftime(
-                    "%Y-%m-%d"
+                    "%d-%m-%Y"
                 ),
             )
 
