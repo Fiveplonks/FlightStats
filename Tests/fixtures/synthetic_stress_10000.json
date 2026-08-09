@@ -1,0 +1,34 @@
+{
+  "aircraft_type_counts": {
+    "A319": 588,
+    "A320": 588,
+    "A330-200": 588,
+    "A330-900": 588,
+    "ATR72": 588,
+    "B737-700": 589,
+    "B737-800": 589,
+    "B737-8200": 589,
+    "B737-900": 589,
+    "CRJ900": 588,
+    "DH8D": 588,
+    "E190": 588,
+    "E195": 588,
+    "EA300L": 588,
+    "PA28": 588,
+    "PA34": 588,
+    "PA44": 588
+  },
+  "flights": 10000,
+  "forced_airport_tests": {
+    "AMS": "EHAM",
+    "LIS": "LPPT",
+    "NDR": "GMMW"
+  },
+  "notes": [
+    "Synthetic data only; contains no personal logbook data.",
+    "Aircraft variants intentionally differ in spelling.",
+    "LIS/NDR routes deliberately repeat with different aircraft."
+  ],
+  "seed": 4242,
+  "total_block_minutes": 1606624
+}
