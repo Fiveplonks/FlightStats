@@ -3462,7 +3462,14 @@ const map = L.map('map', {
     maxZoom: 18,
     zoomControl: true,
     attributionControl: true
-}).setView([20, 0], 2);
+});
+            // Start with the complete world visible. Leaflet calculates
+            // the appropriate zoom from the actual map container size.
+            map.fitBounds([
+                [-85, -180],
+                [85, 180]
+            ]);
+
 
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,

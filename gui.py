@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QColorDialog,
+    QFileDialog,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl
@@ -52,6 +53,90 @@ from parser.fuel import FuelDatabase
 
 
 LOGBOOK = get_logbook_path()
+
+
+def load_saved_logbook():
+    """Return the user's saved logbook path when it still exists."""
+    try:
+        if not SETTINGS_FILE.exists():
+            return None
+
+        with SETTINGS_FILE.open(
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            settings = json.load(handle)
+
+        if not isinstance(settings, dict):
+            return None
+
+        value = settings.get(
+            "logbook_path"
+        )
+
+        if not value:
+            return None
+
+        path = Path(
+            str(value)
+        ).expanduser()
+
+        if (
+            path.exists()
+            and path.is_file()
+            and path.suffix.lower() == ".pdf"
+        ):
+            return path
+
+    except (
+        OSError,
+        json.JSONDecodeError,
+        TypeError,
+    ):
+        pass
+
+    return None
+
+
+def save_logbook_path(path):
+    """Persist the selected logbook path."""
+    SETTINGS_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    settings = {}
+
+    try:
+        if SETTINGS_FILE.exists():
+            with SETTINGS_FILE.open(
+                "r",
+                encoding="utf-8",
+            ) as handle:
+                settings = json.load(handle)
+
+            if not isinstance(settings, dict):
+                settings = {}
+
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ):
+        settings = {}
+
+    settings["logbook_path"] = str(
+        Path(path).expanduser().resolve()
+    )
+
+    with SETTINGS_FILE.open(
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        json.dump(
+            settings,
+            handle,
+            indent=2,
+        )
 
 
 def format_hours(minutes):
@@ -193,8 +278,224 @@ class MetricCard(QFrame):
 # =========================================================
 
 
+class LogbookDropZone(QFrame):
+    """Dashboard drop zone for selecting a logbook PDF."""
+
+    logbook_selected = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+
+        self.setObjectName(
+            "logbookDropZone"
+        )
+
+        self.setAcceptDrops(
+            True
+        )
+
+        layout = QVBoxLayout(
+            self
+        )
+
+        layout.setContentsMargins(
+            30,
+            30,
+            30,
+            30,
+        )
+
+        layout.setSpacing(
+            10
+        )
+
+        self.icon_label = QLabel(
+            "✈"
+        )
+
+        self.icon_label.setObjectName(
+            "logbookDropIcon"
+        )
+
+        self.icon_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            self.icon_label
+        )
+
+        self.title_label = QLabel(
+            "Drop your logbook PDF here"
+        )
+
+        self.title_label.setObjectName(
+            "logbookDropTitle"
+        )
+
+        self.title_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            self.title_label
+        )
+
+        self.subtitle_label = QLabel(
+            "or click to browse for a PDF"
+        )
+
+        self.subtitle_label.setObjectName(
+            "logbookDropSubtitle"
+        )
+
+        self.subtitle_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        layout.addWidget(
+            self.subtitle_label
+        )
+
+        self.browse_button = QPushButton(
+            "Choose Logbook PDF"
+        )
+
+        self.browse_button.setObjectName(
+            "logbookBrowseButton"
+        )
+
+        self.browse_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        self.browse_button.clicked.connect(
+            self.browse_for_logbook
+        )
+
+        layout.addWidget(
+            self.browse_button,
+            0,
+            Qt.AlignCenter,
+        )
+
+    def browse_for_logbook(self):
+        """Open the PDF file picker."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Flight Logbook",
+            "",
+            "PDF files (*.pdf)",
+        )
+
+        if path:
+            self._select_path(
+                path
+            )
+
+    def _select_path(self, path):
+        """Validate and emit a selected PDF path."""
+        path = Path(path)
+
+        if (
+            not path.exists()
+            or not path.is_file()
+            or path.suffix.lower() != ".pdf"
+        ):
+            QMessageBox.warning(
+                self,
+                "Invalid Logbook",
+                "Please select a valid PDF logbook.",
+            )
+            return
+
+        self.logbook_selected.emit(
+            str(path.resolve())
+        )
+
+    def mousePressEvent(self, event):
+        """Allow clicking anywhere in the drop zone."""
+        if event.button() == Qt.LeftButton:
+            self.browse_for_logbook()
+            return
+
+        super().mousePressEvent(
+            event
+        )
+
+    def dragEnterEvent(self, event):
+        """Accept dragged PDF files."""
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+
+        urls = event.mimeData().urls()
+
+        if any(
+            url.isLocalFile()
+            and Path(
+                url.toLocalFile()
+            ).suffix.lower() == ".pdf"
+            for url in urls
+        ):
+            event.acceptProposedAction()
+            self.setProperty(
+                "dragActive",
+                True,
+            )
+            self.style().unpolish(self)
+            self.style().polish(self)
+            return
+
+        event.ignore()
+
+    def dragLeaveEvent(self, event):
+        """Restore the normal drop-zone appearance."""
+        self.setProperty(
+            "dragActive",
+            False,
+        )
+
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+        event.accept()
+
+    def dropEvent(self, event):
+        """Handle a dropped PDF logbook."""
+        self.setProperty(
+            "dragActive",
+            False,
+        )
+
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+        urls = event.mimeData().urls()
+
+        for url in urls:
+            if not url.isLocalFile():
+                continue
+
+            path = Path(
+                url.toLocalFile()
+            )
+
+            if path.suffix.lower() == ".pdf":
+                self._select_path(
+                    str(path)
+                )
+                event.acceptProposedAction()
+                return
+
+        event.ignore()
+
+
+
 class DashboardPage(QWidget):
     """Main FlightStats dashboard."""
+
+    logbook_selected = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -250,6 +551,22 @@ class DashboardPage(QWidget):
 
         header.addStretch()
 
+        self.change_logbook_button = QPushButton(
+            "Change Logbook"
+        )
+
+        self.change_logbook_button.setObjectName(
+            "refreshButton"
+        )
+
+        self.change_logbook_button.setCursor(
+            Qt.PointingHandCursor
+        )
+
+        header.addWidget(
+            self.change_logbook_button
+        )
+
         self.refresh_button = QPushButton(
             "Refresh Logbook"
         )
@@ -271,6 +588,36 @@ class DashboardPage(QWidget):
         )
 
         # -------------------------------------------------
+        # -------------------------------------------------
+        # LOGBOOK SELECTION
+        # -------------------------------------------------
+
+        self.logbook_drop_zone = LogbookDropZone()
+
+        self.logbook_drop_zone.logbook_selected.connect(
+            self.logbook_selected
+        )
+
+        self.layout.addWidget(
+            self.logbook_drop_zone
+        )
+
+        self.logbook_status_label = QLabel(
+            ""
+        )
+
+        self.logbook_status_label.setObjectName(
+            "logbookStatusLabel"
+        )
+
+        self.logbook_status_label.setWordWrap(
+            True
+        )
+
+        self.layout.addWidget(
+            self.logbook_status_label
+        )
+
         # LOADING AREA
         # -------------------------------------------------
 
@@ -482,10 +829,84 @@ class DashboardPage(QWidget):
 
         self.layout.addStretch()
 
-    def set_data(self, data):
+    def show_logbook_selector(self, message=None):
+        """Show the logbook selector and hide statistics."""
+        self.logbook_drop_zone.show()
+        self.logbook_status_label.show()
+
+        if message:
+            self.logbook_status_label.setText(
+                message
+            )
+        else:
+            self.logbook_status_label.setText(
+                "No logbook selected. Choose your flight logbook PDF to begin."
+            )
+
+        self.loading_frame.hide()
+
+        for widget in (
+            self.flights_card,
+            self.time_card,
+            self.distance_card,
+            self.jet_fuel_card,
+            self.piston_fuel_card,
+            self.airports_card,
+            self.year_tabs,
+            self.aircraft_container,
+        ):
+            widget.hide()
+
+    def show_loading(self):
+        """Show loading state while keeping the dashboard compact."""
+        self.logbook_drop_zone.hide()
+        self.logbook_status_label.hide()
+        self.loading_frame.show()
+
+        for widget in (
+            self.flights_card,
+            self.time_card,
+            self.distance_card,
+            self.jet_fuel_card,
+            self.piston_fuel_card,
+            self.airports_card,
+            self.year_tabs,
+            self.aircraft_container,
+        ):
+            widget.hide()
+
+    def show_statistics(self, logbook_path):
+        """Show loaded statistics and the current logbook path."""
+        self.logbook_drop_zone.hide()
+        self.logbook_status_label.show()
+        self.logbook_status_label.setText(
+            f"Current logbook: {Path(logbook_path).name}"
+        )
+
+        self.loading_frame.show()
+
+        for widget in (
+            self.flights_card,
+            self.time_card,
+            self.distance_card,
+            self.jet_fuel_card,
+            self.piston_fuel_card,
+            self.airports_card,
+            self.year_tabs,
+            self.aircraft_container,
+        ):
+            widget.show()
+
+    def set_data(self, data, logbook_path=None):
         """Load data and build Dashboard year tabs."""
 
         self._data = data
+
+        if logbook_path is not None:
+            self.show_statistics(
+                logbook_path
+            )
+
         self.build_year_tabs()
 
     def build_year_tabs(self):
@@ -4539,6 +4960,8 @@ class MainWindow(QMainWindow):
 
         self.data = None
 
+        self.logbook_path = load_saved_logbook()
+
         self.loader_thread = None
         self.loader_worker = None
 
@@ -4769,11 +5192,22 @@ class MainWindow(QMainWindow):
             self.load_data
         )
 
+        self.dashboard_page.change_logbook_button.clicked.connect(
+            self.choose_logbook
+        )
+
+        self.dashboard_page.logbook_selected.connect(
+            self.set_logbook
+        )
+
         # -------------------------------------------------
         # INITIAL LOAD
         # -------------------------------------------------
 
-        self.load_data()
+        if self.logbook_path is not None:
+            self.load_data()
+        else:
+            self.dashboard_page.show_logbook_selector()
 
     # =====================================================
     # DATA LOADING
@@ -4790,7 +5224,32 @@ class MainWindow(QMainWindow):
         ):
             return
 
+        if self.logbook_path is None:
+            self.dashboard_page.show_logbook_selector()
+            return
+
+        self.logbook_path = Path(
+            self.logbook_path
+        ).expanduser()
+
+        if (
+            not self.logbook_path.exists()
+            or not self.logbook_path.is_file()
+        ):
+            self.data = None
+            self.dashboard_page.show_logbook_selector(
+                "The previously selected logbook could not be found. "
+                "Please select it again."
+            )
+            return
+
+        self.dashboard_page.show_loading()
+
         self.dashboard_page.refresh_button.setEnabled(
+            False
+        )
+
+        self.dashboard_page.change_logbook_button.setEnabled(
             False
         )
 
@@ -4810,7 +5269,7 @@ class MainWindow(QMainWindow):
 
         self.loader_worker = (
             DataLoaderWorker(
-                LOGBOOK
+                self.logbook_path
             )
         )
 
@@ -4856,6 +5315,68 @@ class MainWindow(QMainWindow):
 
         self.loader_thread.start()
 
+    def choose_logbook(self):
+        """Open the logbook file picker."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Flight Logbook",
+            "",
+            "PDF files (*.pdf)",
+        )
+
+        if path:
+            self.set_logbook(
+                path
+            )
+
+    def set_logbook(self, path):
+        """Set, persist and load a new user logbook."""
+        path = Path(
+            path
+        ).expanduser()
+
+        if (
+            not path.exists()
+            or not path.is_file()
+            or path.suffix.lower() != ".pdf"
+        ):
+            QMessageBox.warning(
+                self,
+                "Invalid Logbook",
+                "Please select a valid PDF logbook.",
+            )
+            return
+
+        if (
+            self.loader_thread is not None
+            and self.loader_thread.isRunning()
+        ):
+            return
+
+        self.logbook_path = path.resolve()
+
+        try:
+            save_logbook_path(
+                self.logbook_path
+            )
+        except OSError as error:
+            QMessageBox.warning(
+                self,
+                "Could Not Save Setting",
+                f"FlightStats could not save the logbook location:\n{error}",
+            )
+            return
+
+        self.data = None
+
+        self.dashboard_page.show_loading()
+        self.dashboard_page.status_label.setText(
+            f"Loading {self.logbook_path.name}..."
+        )
+
+        self.load_data()
+
+
     def update_loading_progress(
         self,
         percent,
@@ -4880,7 +5401,8 @@ class MainWindow(QMainWindow):
         self.data = data
 
         self.dashboard_page.set_data(
-            self.data
+            self.data,
+            self.logbook_path,
         )
 
         self.logbook_page.set_data(
@@ -4927,6 +5449,10 @@ class MainWindow(QMainWindow):
         """Clean up worker/thread."""
 
         self.dashboard_page.refresh_button.setEnabled(
+            True
+        )
+
+        self.dashboard_page.change_logbook_button.setEnabled(
             True
         )
 
@@ -5258,6 +5784,63 @@ def apply_style(app):
 
         #yearTabs QTabBar::tab:pressed {
             background: #4b5563;
+        }
+
+        #logbookDropZone {
+            background: white;
+            border: 2px dashed #d1d5db;
+            border-radius: 14px;
+            min-height: 210px;
+        }
+
+        #logbookDropZone:hover {
+            border: 2px dashed #6b7280;
+            background: #f9fafb;
+        }
+
+        #logbookDropZone[dragActive="true"] {
+            border: 2px dashed #111827;
+            background: #f3f4f6;
+        }
+
+        #logbookDropIcon {
+            color: #374151;
+            font-size: 30px;
+            font-weight: 700;
+        }
+
+        #logbookDropTitle {
+            color: #111827;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        #logbookDropSubtitle {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        #logbookBrowseButton {
+            background: #111827;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        #logbookBrowseButton:hover {
+            background: #1f2937;
+        }
+
+        #logbookBrowseButton:pressed {
+            background: #374151;
+        }
+
+        #logbookStatusLabel {
+            color: #6b7280;
+            font-size: 12px;
         }
 
         #versionLabel {
