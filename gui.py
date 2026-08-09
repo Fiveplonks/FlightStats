@@ -1331,6 +1331,43 @@ class LogbookPage(QWidget):
 
 
 
+
+class SortableTableWidgetItem(QTableWidgetItem):
+    """Table item that sorts using a hidden numeric value when supplied."""
+
+    def __init__(
+        self,
+        text,
+        sort_value=None,
+    ):
+        super().__init__(
+            str(text)
+        )
+
+        self.sort_value = sort_value
+
+    def __lt__(
+        self,
+        other,
+    ):
+        if isinstance(
+            other,
+            SortableTableWidgetItem,
+        ):
+            if (
+                self.sort_value is not None
+                and other.sort_value is not None
+            ):
+                return (
+                    self.sort_value
+                    < other.sort_value
+                )
+
+        return super().__lt__(
+            other
+        )
+
+
 # =========================================================
 # AIRCRAFT PAGE
 # =========================================================
@@ -1718,12 +1755,7 @@ class AircraftPage(QWidget):
 
         sorted_aircraft = sorted(
             stats,
-            key=lambda aircraft: (
-                -stats[aircraft][
-                    "flights"
-                ],
-                aircraft,
-            ),
+            key=lambda aircraft: aircraft.upper(),
         )
 
         for row, aircraft in enumerate(
@@ -1759,32 +1791,56 @@ class AircraftPage(QWidget):
                 )
 
             values = [
-                aircraft,
-                f"{flights:,}",
-                f"{share:.1f}%",
-                format_hours(
-                    item["minutes"]
+                (
+                    aircraft,
+                    aircraft,
                 ),
-                f'{item["distance"]:,.1f} km',
+                (
+                    f"{flights:,}",
+                    flights,
+                ),
+                (
+                    f"{share:.1f}%",
+                    share,
+                ),
+                (
+                    format_hours(
+                        item["minutes"]
+                    ),
+                    item["minutes"],
+                ),
+                (
+                    f'{item["distance"]:,.1f} km',
+                    item["distance"],
+                ),
                 (
                     "—"
                     if average_speed is None
                     else (
                         f"{average_speed:,.1f} "
                         "km/h"
-                    )
+                    ),
+                    average_speed,
                 ),
-                f'{len(item["registrations"]):,}',
-                fuel_text,
+                (
+                    f'{len(item["registrations"]):,}',
+                    len(item["registrations"]),
+                ),
+                (
+                    fuel_text,
+                    item["fuel"],
+                ),
             ]
 
-            for column, value in enumerate(
-                values
-            ):
+            for column, (
+                value,
+                sort_value,
+            ) in enumerate(values):
                 self.set_item(
                     row,
                     column,
                     value,
+                    sort_value,
                 )
 
         self.table.setSortingEnabled(
@@ -1796,11 +1852,13 @@ class AircraftPage(QWidget):
         row,
         column,
         text,
+        sort_value=None,
     ):
-        """Set one table cell."""
+        """Set one table cell with optional numeric sorting."""
 
-        item = QTableWidgetItem(
-            str(text)
+        item = SortableTableWidgetItem(
+            text,
+            sort_value,
         )
 
         self.table.setItem(

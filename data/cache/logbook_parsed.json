@@ -1,6 +1,6 @@
 {
   "cache_version": 1,
-  "logbook_sha256": "50a5ca43ca5fb467991f2104b7e57a98713665e52f9be98baf02066c82896245",
+  "logbook_sha256": "5388a48585e3e119607088e3db12cb0539372ed0e0dc9969e11006eeb21f263c",
   "parser_signature": "68c25c9406ba4d5d91b5bf068959a553680b564ee102e9e0feb9c78110658a85",
   "flights": [
     {
@@ -12019,7 +12019,7 @@
       "departure_time": "12:28:00",
       "arrival": "EHAM",
       "arrival_time": "14:00:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 92
     },
@@ -12079,7 +12079,7 @@
       "departure_time": "13:01:00",
       "arrival": "EHAM",
       "arrival_time": "14:11:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 70
     },
@@ -12799,7 +12799,7 @@
       "departure_time": "13:24:00",
       "arrival": "EHAM",
       "arrival_time": "14:30:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 66
     },
@@ -12949,7 +12949,7 @@
       "departure_time": "08:41:00",
       "arrival": "LSGG",
       "arrival_time": "10:04:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 83
     },
@@ -13619,7 +13619,7 @@
       "departure_time": "18:58:00",
       "arrival": "LIML",
       "arrival_time": "20:25:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 87
     },
@@ -13629,7 +13629,7 @@
       "departure_time": "21:08:00",
       "arrival": "EHAM",
       "arrival_time": "22:52:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 104
     },
@@ -14129,7 +14129,7 @@
       "departure_time": "04:29:00",
       "arrival": "EHAM",
       "arrival_time": "06:37:00",
-      "aircraft": "B737-Combi",
+      "aircraft": "B737-700",
       "registration": "PH-BGI",
       "flight_minutes": 128
     },
@@ -15146,52 +15146,22 @@
     {
       "date": "2026-08-08",
       "departure": "LFMN",
-      "departure_time": "15:10:00",
+      "departure_time": "15:53:00",
       "arrival": "EHAM",
-      "arrival_time": "17:10:00",
+      "arrival_time": "17:34:00",
       "aircraft": "B737-800",
-      "registration": "XX-B738",
-      "flight_minutes": 120
+      "registration": "PH-BGB",
+      "flight_minutes": 101
     },
     {
       "date": "2026-08-08",
       "departure": "EHAM",
-      "departure_time": "18:35:00",
+      "departure_time": "18:34:00",
       "arrival": "LOWW",
-      "arrival_time": "20:20:00",
+      "arrival_time": "20:13:00",
       "aircraft": "B737-800",
-      "registration": "XX-B738",
-      "flight_minutes": 105
-    },
-    {
-      "date": "2026-08-09",
-      "departure": "LOWW",
-      "departure_time": "12:20:00",
-      "arrival": "EHAM",
-      "arrival_time": "14:10:00",
-      "aircraft": "B737-900",
-      "registration": "XX-B739",
-      "flight_minutes": 110
-    },
-    {
-      "date": "2026-08-09",
-      "departure": "EHAM",
-      "departure_time": "15:25:00",
-      "arrival": "LIML",
-      "arrival_time": "17:00:00",
-      "aircraft": "B737-900",
-      "registration": "XX-B739",
-      "flight_minutes": 95
-    },
-    {
-      "date": "2026-08-09",
-      "departure": "LIML",
-      "departure_time": "17:50:00",
-      "arrival": "EHAM",
-      "arrival_time": "19:40:00",
-      "aircraft": "B737-900",
-      "registration": "XX-B739",
-      "flight_minutes": 110
+      "registration": "PH-BXD",
+      "flight_minutes": 99
     },
     {
       "date": "2026-08-13",
