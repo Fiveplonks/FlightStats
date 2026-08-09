@@ -4,19 +4,28 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
+from app_paths import (
+    BUNDLED_AIRPORT_DATABASE,
+    USER_AIRPORT_DATABASE,
+    USER_AIRPORT_METADATA,
+    USER_CUSTOM_AIRPORT_DATABASE,
+    migrate_file_if_needed,
+)
 
 # ---------------------------------------------------------
 # File locations
 # ---------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
 DATA_DIR = PROJECT_ROOT / "data"
 
-AIRPORT_DATABASE = DATA_DIR / "airports.csv"
-CUSTOM_AIRPORT_DATABASE = DATA_DIR / "custom_airports.csv"
-DATABASE_METADATA = DATA_DIR / "airport_database.json"
+# Read-only reference database supplied with FlightStats.
+BUNDLED_DATABASE = BUNDLED_AIRPORT_DATABASE
 
+# Writable user copies.
+AIRPORT_DATABASE = USER_AIRPORT_DATABASE
+CUSTOM_AIRPORT_DATABASE = USER_CUSTOM_AIRPORT_DATABASE
+DATABASE_METADATA = USER_AIRPORT_METADATA
 
 # ---------------------------------------------------------
 # OurAirports
@@ -25,7 +34,6 @@ DATABASE_METADATA = DATA_DIR / "airport_database.json"
 OURAIRPORTS_URL = (
     "https://ourairports.com/data/airports.csv"
 )
-
 
 class AirportDatabase:
     """
@@ -41,9 +49,25 @@ class AirportDatabase:
     def __init__(self):
         self.airports = {}
 
-        DATA_DIR.mkdir(
+        AIRPORT_DATABASE.parent.mkdir(
             parents=True,
             exist_ok=True,
+        )
+
+        # Preserve existing development/user files on first run.
+        migrate_file_if_needed(
+            DATA_DIR / "airports.csv",
+            AIRPORT_DATABASE,
+        )
+
+        migrate_file_if_needed(
+            DATA_DIR / "custom_airports.csv",
+            CUSTOM_AIRPORT_DATABASE,
+        )
+
+        migrate_file_if_needed(
+            DATA_DIR / "airport_database.json",
+            DATABASE_METADATA,
         )
 
         self.load_database()
@@ -56,7 +80,12 @@ class AirportDatabase:
     def load_database(self):
         """Load the worldwide airport database."""
 
-        if not AIRPORT_DATABASE.exists():
+        database_path = AIRPORT_DATABASE
+
+        if not database_path.exists():
+            database_path = BUNDLED_DATABASE
+
+        if not database_path.exists():
             print(
                 "\nWARNING: Airport database not found."
             )
@@ -70,7 +99,7 @@ class AirportDatabase:
         count = 0
 
         with open(
-            AIRPORT_DATABASE,
+            database_path,
             "r",
             encoding="utf-8",
             newline="",
@@ -541,7 +570,7 @@ class AirportDatabase:
         )
 
         temporary_file = (
-            DATA_DIR / "airports.tmp.csv"
+            AIRPORT_DATABASE.parent / "airports.tmp.csv"
         )
 
         try:
@@ -601,17 +630,6 @@ class AirportDatabase:
 
             return False
 
-
 # ---------------------------------------------------------
 # Test
 # ---------------------------------------------------------
-
-if __name__ == "__main__":
-
-    database = AirportDatabase()
-
-    database.check_database_freshness()
-
-    print(
-        "\nAirport database ready."
-    )
