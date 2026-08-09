@@ -1,4 +1,5 @@
 import hashlib
+import sys
 import json
 from datetime import date, time
 from pathlib import Path
@@ -43,7 +44,19 @@ def _file_sha256(path):
 
 
 def _parser_signature():
-    """Return a signature for the parser code used by the cache."""
+    """Return a signature for the parser code used by the cache.
+
+    During development, hash the parser source files so changes
+    automatically invalidate the parsed-logbook cache.
+
+    In a PyInstaller build, parser modules are packaged inside the
+    application archive and are not guaranteed to exist as normal
+    filesystem files. Use an explicit frozen parser-cache version
+    instead.
+    """
+
+    if getattr(sys, "frozen", False):
+        return "flightstats-parser-cache-v2"
 
     parser_files = [
         Path(__file__).resolve().parent
