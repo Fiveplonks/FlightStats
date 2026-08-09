@@ -1,7 +1,8 @@
 import sys
 import json
+import math
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import (
     QObject,
@@ -9,7 +10,10 @@ from PySide6.QtCore import (
     QThread,
     Signal,
     QEvent,
+    QTimer,
 )
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QBrush
+
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -19,9 +23,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QFileDialog,
     QPushButton,
     QProgressBar,
+    QSlider,
     QStackedWidget,
     QTabWidget,
     QTableWidget,
@@ -32,7 +36,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
+    QColorDialog,
 )
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtCore import QUrl
+
 
 from app_paths import (
     SETTINGS_FILE,
@@ -43,88 +51,7 @@ from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
 
 
-def load_saved_logbook():
-    """Return the user's saved logbook path when it still exists."""
-    try:
-        if not SETTINGS_FILE.exists():
-            return None
-
-        with SETTINGS_FILE.open(
-            "r",
-            encoding="utf-8",
-        ) as handle:
-            settings = json.load(handle)
-
-        if not isinstance(settings, dict):
-            return None
-
-        value = settings.get(
-            "logbook_path"
-        )
-
-        if not value:
-            return None
-
-        path = Path(
-            str(value)
-        ).expanduser()
-
-        if (
-            path.exists()
-            and path.is_file()
-            and path.suffix.lower() == ".pdf"
-        ):
-            return path
-
-    except (
-        OSError,
-        json.JSONDecodeError,
-        TypeError,
-    ):
-        pass
-
-    return None
-
-
-def save_logbook_path(path):
-    """Persist the selected logbook path."""
-    SETTINGS_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    settings = {}
-
-    try:
-        if SETTINGS_FILE.exists():
-            with SETTINGS_FILE.open(
-                "r",
-                encoding="utf-8",
-            ) as handle:
-                settings = json.load(handle)
-
-            if not isinstance(settings, dict):
-                settings = {}
-
-    except (
-        OSError,
-        json.JSONDecodeError,
-    ):
-        settings = {}
-
-    settings["logbook_path"] = str(
-        Path(path).expanduser().resolve()
-    )
-
-    with SETTINGS_FILE.open(
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(
-            settings,
-            handle,
-            indent=2,
-        )
+LOGBOOK = get_logbook_path()
 
 
 def format_hours(minutes):
@@ -262,232 +189,12 @@ class MetricCard(QFrame):
 
 
 # =========================================================
-# LOGBOOK DROP ZONE
-# =========================================================
-
-
-class LogbookDropZone(QFrame):
-    """Dashboard drop zone for selecting a logbook PDF."""
-
-    logbook_selected = Signal(str)
-
-    def __init__(self):
-        super().__init__()
-
-        self.setObjectName(
-            "logbookDropZone"
-        )
-
-        self.setAcceptDrops(
-            True
-        )
-
-        layout = QVBoxLayout(
-            self
-        )
-
-        layout.setContentsMargins(
-            30,
-            30,
-            30,
-            30,
-        )
-
-        layout.setSpacing(
-            10
-        )
-
-        self.icon_label = QLabel(
-            "✈"
-        )
-
-        self.icon_label.setObjectName(
-            "logbookDropIcon"
-        )
-
-        self.icon_label.setAlignment(
-            Qt.AlignCenter
-        )
-
-        layout.addWidget(
-            self.icon_label
-        )
-
-        self.title_label = QLabel(
-            "Drop your logbook PDF here"
-        )
-
-        self.title_label.setObjectName(
-            "logbookDropTitle"
-        )
-
-        self.title_label.setAlignment(
-            Qt.AlignCenter
-        )
-
-        layout.addWidget(
-            self.title_label
-        )
-
-        self.subtitle_label = QLabel(
-            "or click to browse for a PDF"
-        )
-
-        self.subtitle_label.setObjectName(
-            "logbookDropSubtitle"
-        )
-
-        self.subtitle_label.setAlignment(
-            Qt.AlignCenter
-        )
-
-        layout.addWidget(
-            self.subtitle_label
-        )
-
-        self.browse_button = QPushButton(
-            "Choose Logbook PDF"
-        )
-
-        self.browse_button.setObjectName(
-            "logbookBrowseButton"
-        )
-
-        self.browse_button.setCursor(
-            Qt.PointingHandCursor
-        )
-
-        self.browse_button.clicked.connect(
-            self.browse_for_logbook
-        )
-
-        layout.addWidget(
-            self.browse_button,
-            0,
-            Qt.AlignCenter,
-        )
-
-    def browse_for_logbook(self):
-        """Open the PDF file picker."""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Flight Logbook",
-            "",
-            "PDF files (*.pdf)",
-        )
-
-        if path:
-            self._select_path(
-                path
-            )
-
-    def _select_path(self, path):
-        """Validate and emit a selected PDF path."""
-        path = Path(path)
-
-        if (
-            not path.exists()
-            or not path.is_file()
-            or path.suffix.lower() != ".pdf"
-        ):
-            QMessageBox.warning(
-                self,
-                "Invalid Logbook",
-                "Please select a valid PDF logbook.",
-            )
-            return
-
-        self.logbook_selected.emit(
-            str(path.resolve())
-        )
-
-    def mousePressEvent(self, event):
-        """Allow clicking anywhere in the drop zone."""
-        if event.button() == Qt.LeftButton:
-            self.browse_for_logbook()
-            return
-
-        super().mousePressEvent(
-            event
-        )
-
-    def dragEnterEvent(self, event):
-        """Accept dragged PDF files."""
-        if not event.mimeData().hasUrls():
-            event.ignore()
-            return
-
-        urls = event.mimeData().urls()
-
-        if any(
-            url.isLocalFile()
-            and Path(
-                url.toLocalFile()
-            ).suffix.lower() == ".pdf"
-            for url in urls
-        ):
-            event.acceptProposedAction()
-            self.setProperty(
-                "dragActive",
-                True,
-            )
-            self.style().unpolish(self)
-            self.style().polish(self)
-            return
-
-        event.ignore()
-
-    def dragLeaveEvent(self, event):
-        """Restore the normal drop-zone appearance."""
-        self.setProperty(
-            "dragActive",
-            False,
-        )
-
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-        event.accept()
-
-    def dropEvent(self, event):
-        """Handle a dropped PDF logbook."""
-        self.setProperty(
-            "dragActive",
-            False,
-        )
-
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-        urls = event.mimeData().urls()
-
-        for url in urls:
-            if not url.isLocalFile():
-                continue
-
-            path = Path(
-                url.toLocalFile()
-            )
-
-            if path.suffix.lower() == ".pdf":
-                self._select_path(
-                    str(path)
-                )
-                event.acceptProposedAction()
-                return
-
-        event.ignore()
-
-
-# =========================================================
 # DASHBOARD
 # =========================================================
 
 
 class DashboardPage(QWidget):
     """Main FlightStats dashboard."""
-
-    logbook_selected = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -543,24 +250,8 @@ class DashboardPage(QWidget):
 
         header.addStretch()
 
-        self.change_logbook_button = QPushButton(
-            "Change Logbook"
-        )
-
-        self.change_logbook_button.setObjectName(
-            "refreshButton"
-        )
-
-        self.change_logbook_button.setCursor(
-            Qt.PointingHandCursor
-        )
-
-        header.addWidget(
-            self.change_logbook_button
-        )
-
         self.refresh_button = QPushButton(
-            "Refresh"
+            "Refresh Logbook"
         )
 
         self.refresh_button.setObjectName(
@@ -577,36 +268,6 @@ class DashboardPage(QWidget):
 
         self.layout.addLayout(
             header
-        )
-
-        # -------------------------------------------------
-        # LOGBOOK SELECTION
-        # -------------------------------------------------
-
-        self.logbook_drop_zone = LogbookDropZone()
-
-        self.logbook_drop_zone.logbook_selected.connect(
-            self.logbook_selected
-        )
-
-        self.layout.addWidget(
-            self.logbook_drop_zone
-        )
-
-        self.logbook_status_label = QLabel(
-            ""
-        )
-
-        self.logbook_status_label.setObjectName(
-            "logbookStatusLabel"
-        )
-
-        self.logbook_status_label.setWordWrap(
-            True
-        )
-
-        self.layout.addWidget(
-            self.logbook_status_label
         )
 
         # -------------------------------------------------
@@ -703,7 +364,7 @@ class DashboardPage(QWidget):
         )
 
         self.piston_fuel_card = MetricCard(
-            "Estimated piston fuel"
+            "Estimated Avgas"
         )
 
         self.airports_card = MetricCard(
@@ -821,87 +482,10 @@ class DashboardPage(QWidget):
 
         self.layout.addStretch()
 
-        self.show_logbook_selector()
-
-    def show_logbook_selector(self, message=None):
-        """Show the logbook selector and hide statistics."""
-        self.logbook_drop_zone.show()
-        self.logbook_status_label.show()
-
-        if message:
-            self.logbook_status_label.setText(
-                message
-            )
-        else:
-            self.logbook_status_label.setText(
-                "No logbook selected. Choose your flight logbook PDF to begin."
-            )
-
-        self.loading_frame.hide()
-
-        for widget in (
-            self.flights_card,
-            self.time_card,
-            self.distance_card,
-            self.jet_fuel_card,
-            self.piston_fuel_card,
-            self.airports_card,
-            self.year_tabs,
-            self.aircraft_container,
-        ):
-            widget.hide()
-
-    def show_loading(self):
-        """Show loading state while keeping the dashboard compact."""
-        self.logbook_drop_zone.hide()
-        self.logbook_status_label.hide()
-
-        self.loading_frame.show()
-
-        for widget in (
-            self.flights_card,
-            self.time_card,
-            self.distance_card,
-            self.jet_fuel_card,
-            self.piston_fuel_card,
-            self.airports_card,
-            self.year_tabs,
-            self.aircraft_container,
-        ):
-            widget.hide()
-
-    def show_statistics(self, logbook_path):
-        """Show loaded statistics and the current logbook path."""
-        self.logbook_drop_zone.hide()
-        self.logbook_status_label.show()
-        self.logbook_status_label.setText(
-            f"Current logbook: {Path(logbook_path).name}"
-        )
-
-        self.loading_frame.show()
-
-        for widget in (
-            self.flights_card,
-            self.time_card,
-            self.distance_card,
-            self.jet_fuel_card,
-            self.piston_fuel_card,
-            self.airports_card,
-            self.year_tabs,
-            self.aircraft_container,
-        ):
-            widget.show()
-
-    def set_data(self, data, logbook_path=None):
+    def set_data(self, data):
         """Load data and build Dashboard year tabs."""
 
         self._data = data
-
-        if logbook_path is not None:
-            self.show_statistics(
-                logbook_path
-            )
-
         self.build_year_tabs()
 
     def build_year_tabs(self):
@@ -3218,6 +2802,1681 @@ class AirportsPage(QWidget):
         )
 
 
+
+# =========================================================
+# FUEL PAGE
+# =========================================================
+
+
+class FuelPage(QWidget):
+    """Estimated fuel consumption statistics."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.data = None
+        self.selected_year = None
+        self.database = FuelDatabase()
+
+        layout = QVBoxLayout(self)
+
+        layout.setContentsMargins(
+            40,
+            35,
+            40,
+            35,
+        )
+
+        layout.setSpacing(15)
+
+        title = QLabel("Fuel")
+        title.setObjectName("pageTitle")
+
+        subtitle = QLabel(
+            "Estimated fuel consumption based on aircraft fuel-burn profiles"
+        )
+        subtitle.setObjectName("pageSubtitle")
+
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
+        # -------------------------------------------------
+        # KPI CARDS
+        # -------------------------------------------------
+
+        cards_layout = QGridLayout()
+        cards_layout.setSpacing(12)
+
+        self.jet_total_card = MetricCard(
+            "Estimated jet fuel"
+        )
+        self.piston_total_card = MetricCard(
+            "Estimated Avgas"
+        )
+        self.jet_average_card = MetricCard(
+            "Avg. jet fuel / flight"
+        )
+        self.piston_average_card = MetricCard(
+            "Avg. Avgas / flight"
+        )
+
+        cards_layout.addWidget(
+            self.jet_total_card,
+            0,
+            0,
+        )
+        cards_layout.addWidget(
+            self.piston_total_card,
+            0,
+            1,
+        )
+        cards_layout.addWidget(
+            self.jet_average_card,
+            0,
+            2,
+        )
+        cards_layout.addWidget(
+            self.piston_average_card,
+            0,
+            3,
+        )
+
+        layout.addLayout(cards_layout)
+
+        self.coverage_label = QLabel(
+            "Fuel estimates: —"
+        )
+        self.coverage_label.setObjectName("statusLabel")
+        layout.addWidget(self.coverage_label)
+
+        # -------------------------------------------------
+        # YEAR TABS
+        # -------------------------------------------------
+
+        self.year_tabs = QTabWidget()
+        self.year_tabs.setObjectName("yearTabs")
+
+        year_bar = self.year_tabs.tabBar()
+        year_bar.setUsesScrollButtons(True)
+        year_bar.setExpanding(False)
+
+        self.year_tabs.currentChanged.connect(
+            self.year_tab_changed
+        )
+
+        layout.addWidget(self.year_tabs)
+
+        # -------------------------------------------------
+        # AIRCRAFT TABLE
+        # -------------------------------------------------
+
+        aircraft_title = QLabel(
+            "Fuel by Aircraft"
+        )
+        aircraft_title.setObjectName("sectionTitle")
+        layout.addWidget(aircraft_title)
+
+        self.aircraft_table = QTableWidget()
+        self.aircraft_table.setObjectName("fuelTable")
+        self.aircraft_table.setColumnCount(7)
+        self.aircraft_table.setHorizontalHeaderLabels(
+            [
+                "Aircraft",
+                "Flights",
+                "Flight Time",
+                "Estimated Fuel",
+                "Avg. / Flight",
+                "Avg. / Hour",
+                "Coverage",
+            ]
+        )
+        self.aircraft_table.setSortingEnabled(True)
+        self.aircraft_table.setSelectionBehavior(
+            QTableWidget.SelectRows
+        )
+        self.aircraft_table.setSelectionMode(
+            QTableWidget.SingleSelection
+        )
+        self.aircraft_table.setEditTriggers(
+            QTableWidget.NoEditTriggers
+        )
+        self.aircraft_table.verticalHeader().setVisible(False)
+
+        header = self.aircraft_table.horizontalHeader()
+        header.setStretchLastSection(True)
+
+        for column in range(
+            self.aircraft_table.columnCount()
+        ):
+            header.setSectionResizeMode(
+                column,
+                QHeaderView.ResizeToContents,
+            )
+
+        layout.addWidget(
+            self.aircraft_table,
+            1,
+        )
+
+        # -------------------------------------------------
+        # YEAR SUMMARY
+        # -------------------------------------------------
+
+        yearly_title = QLabel(
+            "Fuel by Year"
+        )
+        yearly_title.setObjectName("sectionTitle")
+        layout.addWidget(yearly_title)
+
+        self.yearly_table = QTableWidget()
+        self.yearly_table.setObjectName("fuelYearTable")
+        self.yearly_table.setColumnCount(8)
+        self.yearly_table.setHorizontalHeaderLabels(
+            [
+                "Year",
+                "Flights",
+                "Flight Time",
+                "Jet Fuel",
+                "Avgas",
+                "Avg. Jet / Flight",
+                "Avg. Piston / Flight",
+                "Coverage",
+            ]
+        )
+        self.yearly_table.setSortingEnabled(True)
+        self.yearly_table.setSelectionBehavior(
+            QTableWidget.SelectRows
+        )
+        self.yearly_table.setSelectionMode(
+            QTableWidget.SingleSelection
+        )
+        self.yearly_table.setEditTriggers(
+            QTableWidget.NoEditTriggers
+        )
+        self.yearly_table.verticalHeader().setVisible(False)
+
+        yearly_header = self.yearly_table.horizontalHeader()
+        yearly_header.setStretchLastSection(True)
+
+        for column in range(
+            self.yearly_table.columnCount()
+        ):
+            yearly_header.setSectionResizeMode(
+                column,
+                QHeaderView.ResizeToContents,
+            )
+
+        layout.addWidget(self.yearly_table)
+
+    def set_data(self, data):
+        """Load shared FlightStats data."""
+        self.data = data
+        self.build_year_tabs()
+        self.update_yearly_table()
+
+    def build_year_tabs(self):
+        """Build ALL and one tab for every logbook year."""
+        self.year_tabs.blockSignals(True)
+        self.year_tabs.clear()
+
+        if self.data is None:
+            self.year_tabs.blockSignals(False)
+            return
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self.data.flights
+            },
+            reverse=True,
+        )
+
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
+        for year in years:
+            self.year_tabs.addTab(
+                QWidget(),
+                str(year),
+            )
+
+        self.selected_year = None
+        self.year_tabs.blockSignals(False)
+        self.year_tabs.setCurrentIndex(0)
+        self.update_page()
+
+    def year_tab_changed(self, index):
+        """Update fuel statistics for the selected year."""
+        if self.data is None or index < 0:
+            return
+
+        text = self.year_tabs.tabText(index)
+        self.selected_year = (
+            None
+            if text == "ALL"
+            else int(text)
+        )
+
+        self.update_page()
+
+    def _fuel_result(self, index):
+        """Return a valid fuel result for a flight index."""
+        if index >= len(self.data.fuel_results):
+            return None
+
+        result = self.data.fuel_results[index]
+
+        if not isinstance(result, dict):
+            return None
+
+        return result
+
+    def _format_fuel(self, amount, unit):
+        """Format a fuel amount using the result's unit."""
+        if amount is None or unit is None:
+            return "—"
+
+        return (
+            f"{amount:,.1f} "
+            f"{display_fuel_unit(unit)}"
+        )
+
+    def update_page(self):
+        """Calculate and display fuel statistics for the selected year."""
+        if self.data is None:
+            return
+
+        indexes = [
+            index
+            for index, flight in enumerate(
+                self.data.flights
+            )
+            if (
+                self.selected_year is None
+                or flight.date.year == self.selected_year
+            )
+        ]
+
+        jet_total = 0.0
+        piston_total = 0.0
+        jet_count = 0
+        piston_count = 0
+        covered_count = 0
+
+        aircraft_stats = {}
+
+        for index in indexes:
+            flight = self.data.flights[index]
+            aircraft = self.database.normalize_type(
+                flight.aircraft
+            ) if hasattr(self, "database") else flight.aircraft
+
+            if aircraft not in aircraft_stats:
+                aircraft_stats[aircraft] = {
+                    "flights": 0,
+                    "minutes": 0,
+                    "fuel": 0.0,
+                    "fuel_unit": None,
+                    "covered": 0,
+                }
+
+            item = aircraft_stats[aircraft]
+            item["flights"] += 1
+            item["minutes"] += flight.flight_minutes or 0
+
+            result = self._fuel_result(index)
+
+            if result is None:
+                continue
+
+            fuel = result.get("fuel")
+            unit = result.get("unit")
+
+            if fuel is None or unit not in ("kg/h", "L/h"):
+                continue
+
+            item["fuel"] += fuel
+            item["fuel_unit"] = display_fuel_unit(unit)
+            item["covered"] += 1
+            covered_count += 1
+
+            if unit == "kg/h":
+                jet_total += fuel
+                jet_count += 1
+            elif unit == "L/h":
+                piston_total += fuel
+                piston_count += 1
+
+        # -------------------------------------------------
+        # KPI CARDS
+        # -------------------------------------------------
+
+        self.jet_total_card.set_value(
+            f"{jet_total:,.1f} kg"
+        )
+        self.piston_total_card.set_value(
+            f"{piston_total:,.1f} L"
+        )
+
+        self.jet_average_card.set_value(
+            (
+                f"{jet_total / jet_count:,.1f} kg"
+                if jet_count
+                else "—"
+            )
+        )
+        self.piston_average_card.set_value(
+            (
+                f"{piston_total / piston_count:,.1f} L"
+                if piston_count
+                else "—"
+            )
+        )
+
+        total_flights = len(indexes)
+        coverage = (
+            covered_count / total_flights * 100
+            if total_flights
+            else 0
+        )
+
+        self.coverage_label.setText(
+            f"Fuel estimates available for "
+            f"{covered_count:,} of {total_flights:,} flights "
+            f"({coverage:.1f}%)"
+        )
+
+        # -------------------------------------------------
+        # AIRCRAFT TABLE
+        # -------------------------------------------------
+
+        self.aircraft_table.setSortingEnabled(False)
+        self.aircraft_table.setRowCount(
+            len(aircraft_stats)
+        )
+
+        for row, aircraft in enumerate(
+            sorted(
+                aircraft_stats,
+                key=lambda value: str(value).upper(),
+            )
+        ):
+            item = aircraft_stats[aircraft]
+            flights = item["flights"]
+            minutes = item["minutes"]
+            fuel = item["fuel"]
+            unit = item["fuel_unit"]
+            covered = item["covered"]
+
+            average_flight = (
+                fuel / covered
+                if covered
+                else None
+            )
+
+            average_hour = (
+                fuel / minutes * 60
+                if covered and minutes
+                else None
+            )
+
+            coverage_text = (
+                f"{covered:,}/{flights:,}"
+            )
+
+            values = [
+                (str(aircraft), str(aircraft)),
+                (f"{flights:,}", flights),
+                (
+                    format_hours(minutes),
+                    minutes,
+                ),
+                (
+                    self._format_fuel(
+                        fuel if covered else None,
+                        unit,
+                    ),
+                    fuel if covered else -1,
+                ),
+                (
+                    self._format_fuel(
+                        average_flight,
+                        unit,
+                    ),
+                    average_flight if average_flight is not None else -1,
+                ),
+                (
+                    self._format_fuel(
+                        average_hour,
+                        unit,
+                    ),
+                    average_hour if average_hour is not None else -1,
+                ),
+                (
+                    coverage_text,
+                    covered / flights if flights else 0,
+                ),
+            ]
+
+            for column, (text, sort_value) in enumerate(values):
+                self.set_item(
+                    self.aircraft_table,
+                    row,
+                    column,
+                    text,
+                    sort_value,
+                )
+
+        self.aircraft_table.setSortingEnabled(True)
+
+        # -------------------------------------------------
+        # YEAR SUMMARY
+        # -------------------------------------------------
+
+        self.update_yearly_table()
+
+    def update_yearly_table(self):
+        """Display annual fuel totals independent of the selected tab."""
+        if self.data is None:
+            self.yearly_table.setRowCount(0)
+            return
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self.data.flights
+            },
+            reverse=True,
+        )
+
+        self.yearly_table.setSortingEnabled(False)
+        self.yearly_table.setRowCount(len(years))
+
+        for row, year in enumerate(years):
+            indexes = [
+                index
+                for index, flight in enumerate(
+                    self.data.flights
+                )
+                if flight.date.year == year
+            ]
+
+            jet_total = 0.0
+            piston_total = 0.0
+            jet_count = 0
+            piston_count = 0
+            covered = 0
+            minutes = sum(
+                self.data.flights[index].flight_minutes or 0
+                for index in indexes
+            )
+
+            for index in indexes:
+                result = self._fuel_result(index)
+
+                if result is None:
+                    continue
+
+                fuel = result.get("fuel")
+                unit = result.get("unit")
+
+                if fuel is None:
+                    continue
+
+                covered += 1
+
+                if unit == "kg/h":
+                    jet_total += fuel
+                    jet_count += 1
+                elif unit == "L/h":
+                    piston_total += fuel
+                    piston_count += 1
+
+            coverage = (
+                covered / len(indexes) * 100
+                if indexes
+                else 0
+            )
+
+            values = [
+                (str(year), year),
+                (f"{len(indexes):,}", len(indexes)),
+                (format_hours(minutes), minutes),
+                (
+                    f"{jet_total:,.1f} kg" if jet_count else "—",
+                    jet_total,
+                ),
+                (
+                    f"{piston_total:,.1f} L" if piston_count else "—",
+                    piston_total,
+                ),
+                (
+                    f"{jet_total / jet_count:,.1f} kg"
+                    if jet_count else "—",
+                    jet_total / jet_count if jet_count else -1,
+                ),
+                (
+                    f"{piston_total / piston_count:,.1f} L"
+                    if piston_count else "—",
+                    piston_total / piston_count if piston_count else -1,
+                ),
+                (
+                    f"{coverage:.1f}%",
+                    coverage,
+                ),
+            ]
+
+            for column, (text, sort_value) in enumerate(values):
+                self.set_item(
+                    self.yearly_table,
+                    row,
+                    column,
+                    text,
+                    sort_value,
+                )
+
+        self.yearly_table.setSortingEnabled(True)
+
+    def set_item(
+        self,
+        table,
+        row,
+        column,
+        text,
+        sort_value=None,
+    ):
+        """Set a sortable table cell."""
+        item = SortableTableWidgetItem(
+            str(text),
+            sort_value,
+        )
+        table.setItem(row, column, item)
+
+# =========================================================
+# MAP PAGE
+# =========================================================
+
+
+class WorldMapWidget(QWidget):
+    """Online Leaflet map for the user's flights."""
+
+    MONTH_ANIMATION_MS = 15000
+
+    MAP_HTML = r"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin="">
+<style>
+html, body, #map {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+body {
+    background: #e5e7eb;
+}
+.leaflet-container {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #dbeafe;
+}
+.airport-marker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid white;
+    box-shadow: 0 0 0 1px rgba(17,24,39,.55);
+    background: #ffffff;
+}
+.aircraft-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: center center;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.35));
+}
+.aircraft-icon svg {
+    width: 22px;
+    height: 22px;
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        crossorigin=""></script>
+<script>
+const map = L.map('map', {
+    worldCopyJump: false,
+    minZoom: 1,
+    maxZoom: 18,
+    zoomControl: true,
+    attributionControl: true
+});
+            // Start with the complete world visible. Leaflet calculates
+            // the appropriate zoom from the actual map container size.
+            map.fitBounds([
+                [-85, -180],
+                [85, 180]
+            ]);
+
+
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    crossOrigin: true
+}).addTo(map);
+
+let traceColor = '#111827';
+let currentRoutes = [];
+let cumulativeRoutes = [];
+let currentAirports = {};
+let cumulativeAirports = {};
+let currentLayers = [];
+let cumulativeLayers = [];
+let airportLayers = [];
+let animationFrame = null;
+let animationStartedAt = null;
+let animationActive = false;
+let aircraftMarker = null;
+
+function clearLayers(list) {
+    for (const layer of list) {
+        map.removeLayer(layer);
+    }
+    list.length = 0;
+}
+
+function clearAircraft() {
+    if (aircraftMarker) {
+        map.removeLayer(aircraftMarker);
+        aircraftMarker = null;
+    }
+}
+
+function makeCurve(dep, arr) {
+    // Quadratic curve in geographic coordinates. The route endpoints
+    // remain exact WGS84 coordinates; curvature is purely visual.
+    const lat1 = dep[0], lon1 = dep[1];
+    const lat2 = arr[0], lon2 = arr[1];
+
+    let dLon = lon2 - lon1;
+    if (Math.abs(dLon) > 180) return null;
+
+    const dx = dLon;
+    const dy = lat2 - lat1;
+    const length = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    const nx = -dy / length;
+    const ny = dx / length;
+    const bend = Math.min(12, length * 0.10);
+
+    const cx = (lon1 + lon2) / 2 + nx * bend;
+    const cy = (lat1 + lat2) / 2 + ny * bend;
+
+    const points = [];
+    const steps = 24;
+
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const u = 1 - t;
+        const lon = u * u * lon1 + 2 * u * t * cx + t * t * lon2;
+        const lat = u * u * lat1 + 2 * u * t * cy + t * t * lat2;
+        points.push([lat, lon]);
+    }
+
+    return points;
+}
+
+function routePoints(route) {
+    return makeCurve(route.dep, route.arr);
+}
+
+function drawRoutes(routes, target, opacity) {
+    clearLayers(target);
+
+    for (const route of routes) {
+        const points = routePoints(route);
+        if (!points) continue;
+
+        const line = L.polyline(points, {
+            color: traceColor,
+            weight: 2.5,
+            opacity: opacity,
+            lineCap: 'round',
+            lineJoin: 'round',
+            interactive: false
+        }).addTo(map);
+
+        target.push(line);
+    }
+}
+
+function drawAirports() {
+    clearLayers(airportLayers);
+
+    const all = {};
+    Object.assign(all, cumulativeAirports);
+    Object.assign(all, currentAirports);
+
+    for (const code of Object.keys(all)) {
+        const airport = all[code];
+        const icon = L.divIcon({
+            className: '',
+            html: '<div class="airport-marker"></div>',
+            iconSize: [8, 8],
+            iconAnchor: [4, 4]
+        });
+
+        const marker = L.marker(
+            [airport.lat, airport.lon],
+            { icon: icon, interactive: true }
+        ).bindTooltip(code, {
+            direction: 'top',
+            offset: [0, -4]
+        });
+
+        marker.addTo(map);
+        airportLayers.push(marker);
+    }
+}
+
+function setViewWorld() {
+    map.fitWorld({ padding: [10, 10] });
+}
+
+function setData(data) {
+    currentRoutes = data.currentRoutes || [];
+    cumulativeRoutes = data.cumulativeRoutes || [];
+    currentAirports = data.currentAirports || {};
+    cumulativeAirports = data.cumulativeAirports || {};
+    traceColor = data.traceColor || '#111827';
+
+    drawRoutes(cumulativeRoutes, cumulativeLayers, 0.72);
+    drawRoutes(currentRoutes, currentLayers, 0.95);
+    drawAirports();
+
+    if (data.animationActive) {
+        startAnimation();
+    } else {
+        stopAnimation();
+    }
+}
+
+function aircraftIcon(angle) {
+    return L.divIcon({
+        className: 'aircraft-icon',
+        html: `<svg viewBox="0 0 24 24" style="transform:rotate(${angle}deg)">
+            <path d="M21 11.2L13.6 8.4V3.3c0-.8-.7-1.3-1.6-1.3s-1.6.5-1.6 1.3v5.1L3 11.2v1.9l7.4-1.2v5.0l-2.3 1.5v1.4l3.9-.8 3.9.8v-1.4l-2.3-1.5v-5l7.4 1.2v-1.9z" fill="${traceColor}"/>
+        </svg>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+}
+
+function interpolate(points, t) {
+    if (!points || points.length === 0) return null;
+    if (points.length === 1) return { lat: points[0][0], lon: points[0][1], angle: 0 };
+
+    const scaled = t * (points.length - 1);
+    const index = Math.min(points.length - 2, Math.floor(scaled));
+    const local = scaled - index;
+
+    const a = points[index];
+    const b = points[index + 1];
+    const lat = a[0] + (b[0] - a[0]) * local;
+    const lon = a[1] + (b[1] - a[1]) * local;
+
+    const dy = b[0] - a[0];
+    const dx = b[1] - a[1];
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+
+    return { lat, lon, angle };
+}
+
+function animationFrameStep(timestamp) {
+    if (!animationActive) return;
+
+    if (animationStartedAt === null) {
+        animationStartedAt = timestamp;
+    }
+
+    const elapsed = timestamp - animationStartedAt;
+    const progress = Math.min(1, elapsed / 15000);
+    const count = currentRoutes.length;
+
+    if (count > 0) {
+        const timeline = progress * count;
+        const completed = Math.min(count, Math.floor(timeline));
+        const currentProgress = timeline - completed;
+
+        // Re-render current month routes according to the sequential timeline.
+        clearLayers(currentLayers);
+
+        for (let i = 0; i < completed; i++) {
+            const points = routePoints(currentRoutes[i]);
+            if (!points) continue;
+            currentLayers.push(
+                L.polyline(points, {
+                    color: traceColor,
+                    weight: 2.5,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    interactive: false
+                }).addTo(map)
+            );
+        }
+
+        if (completed < count && currentProgress > 0) {
+            const route = currentRoutes[completed];
+            const points = routePoints(route);
+
+            if (points) {
+                const partialCount = Math.max(
+                    2,
+                    Math.floor(currentProgress * (points.length - 1)) + 1
+                );
+                const partial = points.slice(0, partialCount);
+                const position = interpolate(points, currentProgress);
+
+                currentLayers.push(
+                    L.polyline(partial, {
+                        color: traceColor,
+                        weight: 2.5,
+                        opacity: 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        interactive: false
+                    }).addTo(map)
+                );
+
+                if (position) {
+                    if (!aircraftMarker) {
+                        aircraftMarker = L.marker(
+                            [position.lat, position.lon],
+                            { icon: aircraftIcon(position.angle), interactive: false }
+                        ).addTo(map);
+                    } else {
+                        aircraftMarker.setLatLng([position.lat, position.lon]);
+                        aircraftMarker.setIcon(aircraftIcon(position.angle));
+                    }
+                }
+            }
+        }
+    }
+
+    if (progress >= 1) {
+        clearAircraft();
+        animationActive = false;
+        animationStartedAt = null;
+        drawRoutes(currentRoutes, currentLayers, 0.95);
+        return;
+    }
+
+    animationFrame = requestAnimationFrame(animationFrameStep);
+}
+
+function startAnimation() {
+    if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+    }
+
+    clearAircraft();
+    animationActive = true;
+    animationStartedAt = null;
+    animationFrame = requestAnimationFrame(animationFrameStep);
+}
+
+function stopAnimation() {
+    animationActive = false;
+    animationStartedAt = null;
+
+    if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+    }
+
+    clearAircraft();
+    drawRoutes(currentRoutes, currentLayers, 0.95);
+}
+
+function resetAnimation() {
+    animationStartedAt = null;
+    clearAircraft();
+
+    if (animationActive) {
+        startAnimation();
+    } else {
+        drawRoutes(currentRoutes, currentLayers, 0.95);
+    }
+}
+
+function zoomIn() { map.zoomIn(); }
+function zoomOut() { map.zoomOut(); }
+function resetView() { setViewWorld(); }
+function setTraceColor(color) {
+    traceColor = color;
+    drawRoutes(cumulativeRoutes, cumulativeLayers, 0.72);
+    drawRoutes(currentRoutes, currentLayers, 0.95);
+    drawAirports();
+}
+
+window.flightStatsMap = {
+    setData,
+    startAnimation,
+    stopAnimation,
+    resetAnimation,
+    zoomIn,
+    zoomOut,
+    resetView,
+    setTraceColor
+};
+
+setViewWorld();
+</script>
+</body>
+</html>
+"""
+
+    def __init__(self):
+        super().__init__()
+
+        self.routes = []
+        self.airports = {}
+        self.cumulative_routes = []
+        self.cumulative_airports = {}
+
+        self.trace_color = QColor("#111827")
+        self.animation_active = False
+        self._page_ready = False
+        self._pending_sync = True
+
+        self.setMinimumHeight(430)
+        self.setObjectName("flightMap")
+
+        self.web = QWebEngineView(self)
+        self.web.setContextMenuPolicy(Qt.NoContextMenu)
+        self.web.page().profile().setHttpUserAgent(
+            "FlightStats desktop application"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.web)
+
+        self.web.loadFinished.connect(
+            self._map_loaded
+        )
+        self.web.setHtml(
+            self.MAP_HTML,
+            QUrl("https://flightstats.local/")
+        )
+
+    # -----------------------------------------------------
+    # MAP SYNCHRONISATION
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _airport_payload(airports):
+        result = {}
+        for code, value in airports.items():
+            result[code] = {
+                "lon": value[0],
+                "lat": value[1],
+            }
+        return result
+
+    @staticmethod
+    def _route_payload(routes):
+        result = []
+        for dep, arr in routes:
+            result.append({
+                "dep": [dep[1], dep[0]],
+                "arr": [arr[1], arr[0]],
+            })
+        return result
+
+    def _sync_map(self):
+        if not self._page_ready:
+            self._pending_sync = True
+            return
+
+        import json
+
+        payload = {
+            "currentRoutes": self._route_payload(self.routes),
+            "cumulativeRoutes": self._route_payload(
+                self.cumulative_routes
+            ),
+            "currentAirports": self._airport_payload(
+                self.airports
+            ),
+            "cumulativeAirports": self._airport_payload(
+                self.cumulative_airports
+            ),
+            "traceColor": self.trace_color.name(),
+            "animationActive": self.animation_active,
+        }
+
+        payload_json = json.dumps(payload)
+
+        self.web.page().runJavaScript(
+            "window.flightStatsMap.setData(" + payload_json + ");"
+        )
+        self._pending_sync = False
+
+    def _map_loaded(self, ok):
+        self._page_ready = bool(ok)
+        if self._page_ready:
+            self._pending_sync = False
+            self._sync_map()
+
+    # -----------------------------------------------------
+    # DATA
+    # -----------------------------------------------------
+
+    def set_flights(self, flights, database):
+        """Set the routes currently visible on the map."""
+
+        self.routes = []
+        self.airports = {}
+
+        for flight in flights:
+            departure = database.find(flight.departure)
+            arrival = database.find(flight.arrival)
+
+            if departure is None or arrival is None:
+                continue
+
+            if (
+                departure.get("latitude") is None
+                or departure.get("longitude") is None
+                or arrival.get("latitude") is None
+                or arrival.get("longitude") is None
+            ):
+                continue
+
+            dep = (
+                float(departure["longitude"]),
+                float(departure["latitude"]),
+                flight.departure,
+            )
+            arr = (
+                float(arrival["longitude"]),
+                float(arrival["latitude"]),
+                flight.arrival,
+            )
+
+            self.routes.append((dep, arr))
+            self.airports[flight.departure] = dep
+            self.airports[flight.arrival] = arr
+
+        self._sync_map()
+
+    def set_cumulative_flights(self, flights, database):
+        """Set routes belonging to months before the current month."""
+
+        routes = []
+        airports = {}
+
+        for flight in flights:
+            departure = database.find(flight.departure)
+            arrival = database.find(flight.arrival)
+
+            if departure is None or arrival is None:
+                continue
+
+            if (
+                departure.get("latitude") is None
+                or departure.get("longitude") is None
+                or arrival.get("latitude") is None
+                or arrival.get("longitude") is None
+            ):
+                continue
+
+            dep = (
+                float(departure["longitude"]),
+                float(departure["latitude"]),
+                flight.departure,
+            )
+            arr = (
+                float(arrival["longitude"]),
+                float(arrival["latitude"]),
+                flight.arrival,
+            )
+
+            routes.append((dep, arr))
+            airports[flight.departure] = dep
+            airports[flight.arrival] = arr
+
+        self.cumulative_routes = routes
+        self.cumulative_airports = airports
+        self._sync_map()
+
+    # -----------------------------------------------------
+    # AIRCRAFT ANIMATION
+    # -----------------------------------------------------
+
+    def start_animation(self):
+        self.animation_active = True
+
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.startAnimation();"
+            )
+        else:
+            self._pending_sync = True
+
+    def stop_animation(self):
+        self.animation_active = False
+
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.stopAnimation();"
+            )
+
+    def reset_animation(self):
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.resetAnimation();"
+            )
+
+    # -----------------------------------------------------
+    # ZOOM / PAN
+    # -----------------------------------------------------
+
+    def zoom_in(self):
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.zoomIn();"
+            )
+
+    def zoom_out(self):
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.zoomOut();"
+            )
+
+    def reset_view(self):
+        if self._page_ready:
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.resetView();"
+            )
+
+    # -----------------------------------------------------
+    # TRACE COLOR
+    # -----------------------------------------------------
+
+    def set_trace_color(self, color):
+        if not color.isValid():
+            return
+
+        self.trace_color = QColor(color)
+
+        if self._page_ready:
+            import json
+            self.web.page().runJavaScript(
+                "window.flightStatsMap.setTraceColor("
+                + json.dumps(self.trace_color.name())
+                + ");"
+            )
+
+
+class MapPage(QWidget):
+    """Animated online map of the user's flights."""
+
+    MONTHS = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    MONTH_PLAYBACK_MS = 15000
+
+    def __init__(self):
+        super().__init__()
+        self.data = None
+        self.database = AirportDatabase()
+        self.selected_year = None
+        self.selected_month = 0
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 35, 40, 35)
+        layout.setSpacing(15)
+
+        title = QLabel("Map")
+        title.setObjectName("pageTitle")
+
+        subtitle = QLabel(
+            "Explore your flights by year, month and aircraft"
+        )
+        subtitle.setObjectName("pageSubtitle")
+
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
+        map_disclaimer = QLabel(
+            "Map visualization requires an active internet connection."
+        )
+        map_disclaimer.setObjectName("statusLabel")
+        layout.addWidget(map_disclaimer)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(10)
+
+        year_label = QLabel("Year:")
+        year_label.setStyleSheet("font-weight: 600;")
+        controls.addWidget(year_label)
+
+        self.year_combo = QComboBox()
+        self.year_combo.setObjectName("filterBox")
+        self.year_combo.currentIndexChanged.connect(
+            self.filters_changed
+        )
+        controls.addWidget(self.year_combo)
+
+        aircraft_label = QLabel("Aircraft:")
+        aircraft_label.setStyleSheet("font-weight: 600;")
+        controls.addWidget(aircraft_label)
+
+        self.aircraft_combo = QComboBox()
+        self.aircraft_combo.setObjectName("filterBox")
+        self.aircraft_combo.currentIndexChanged.connect(
+            self.filters_changed
+        )
+        controls.addWidget(self.aircraft_combo)
+
+        controls.addStretch()
+        layout.addLayout(controls)
+
+        # -------------------------------------------------
+        # MAP CONTROLS
+        # -------------------------------------------------
+
+        map_controls = QHBoxLayout()
+        map_controls.setSpacing(8)
+
+        zoom_label = QLabel("Zoom:")
+        zoom_label.setStyleSheet("font-weight: 600;")
+        map_controls.addWidget(zoom_label)
+
+        self.zoom_out_button = QPushButton("−")
+        self.zoom_out_button.setFixedWidth(38)
+        map_controls.addWidget(self.zoom_out_button)
+
+        self.zoom_reset_button = QPushButton("Reset")
+        self.zoom_reset_button.setFixedWidth(58)
+        map_controls.addWidget(self.zoom_reset_button)
+
+        self.zoom_in_button = QPushButton("+")
+        self.zoom_in_button.setFixedWidth(38)
+        map_controls.addWidget(self.zoom_in_button)
+
+        self.zoom_out_button.clicked.connect(
+            lambda: self.map.zoom_out()
+        )
+        self.zoom_reset_button.clicked.connect(
+            lambda: self.map.reset_view()
+        )
+        self.zoom_in_button.clicked.connect(
+            lambda: self.map.zoom_in()
+        )
+
+        map_controls.addSpacing(12)
+
+        trace_label = QLabel("Flight trace:")
+        trace_label.setStyleSheet("font-weight: 600;")
+        map_controls.addWidget(trace_label)
+
+        self.trace_color_button = QPushButton("Choose color")
+        self.trace_color_button.clicked.connect(
+            self.choose_trace_color
+        )
+        map_controls.addWidget(self.trace_color_button)
+
+        map_controls.addStretch()
+        layout.addLayout(map_controls)
+
+        self.map = WorldMapWidget()
+        layout.addWidget(self.map, 1)
+        self.update_trace_color_button()
+
+        self.month_label = QLabel("January")
+        self.month_label.setObjectName("sectionTitle")
+        self.month_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.month_label)
+
+        slider_row = QHBoxLayout()
+
+        self.previous_button = QPushButton("◀")
+        self.previous_button.setFixedWidth(42)
+        self.previous_button.clicked.connect(self.previous_month)
+
+        self.month_slider = QSlider(Qt.Horizontal)
+        self.month_slider.setMinimum(0)
+        self.month_slider.setMaximum(11)
+        self.month_slider.setValue(0)
+        self.month_slider.setTickPosition(QSlider.TicksBelow)
+        self.month_slider.setTickInterval(1)
+        self.month_slider.valueChanged.connect(self.month_changed)
+
+        self.next_button = QPushButton("▶")
+        self.next_button.setFixedWidth(42)
+        self.next_button.clicked.connect(self.next_month)
+
+        slider_row.addWidget(self.previous_button)
+        slider_row.addWidget(self.month_slider, 1)
+        slider_row.addWidget(self.next_button)
+        layout.addLayout(slider_row)
+
+        bottom_row = QHBoxLayout()
+
+        self.play_button = QPushButton("▶ Play")
+        self.play_button.clicked.connect(self.toggle_play)
+        bottom_row.addWidget(self.play_button)
+
+        self.flight_count_label = QLabel("0 flights")
+        self.flight_count_label.setObjectName("statusLabel")
+        bottom_row.addWidget(self.flight_count_label)
+
+        bottom_row.addStretch()
+        layout.addLayout(bottom_row)
+
+        # Parent timer advances the calendar one month every 15 seconds.
+        # The WorldMapWidget has its own 40 ms timer for smooth aircraft
+        # movement within that 15-second month.
+        self.timer = QTimer(self)
+        self.timer.setInterval(self.MONTH_PLAYBACK_MS)
+        self.timer.timeout.connect(self.next_month)
+
+    def choose_trace_color(self):
+        """Open the color picker for flight traces."""
+
+        color = QColorDialog.getColor(
+            self.map.trace_color,
+            self,
+            "Choose flight trace color",
+        )
+
+        if not color.isValid():
+            return
+
+        self.map.set_trace_color(color)
+        self.update_trace_color_button()
+
+    def update_trace_color_button(self):
+        """Reflect the selected trace color in the button."""
+
+        color = self.map.trace_color
+
+        self.trace_color_button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {color.name()};
+                color: white;
+                border: 1px solid #9ca3af;
+                border-radius: 6px;
+                padding: 6px 12px;
+            }}
+            """
+        )
+
+    def set_data(self, data):
+        self.data = data
+
+        self.year_combo.blockSignals(True)
+        self.aircraft_combo.blockSignals(True)
+
+        self.year_combo.clear()
+        self.aircraft_combo.clear()
+
+        self.year_combo.addItem("All years", None)
+
+        years = sorted(
+            {flight.date.year for flight in data.flights},
+            reverse=True,
+        )
+
+        for year in years:
+            self.year_combo.addItem(str(year), year)
+
+        self.aircraft_combo.addItem("All aircraft", None)
+
+        aircraft_types = sorted(
+            {
+                FuelDatabase.normalize_type(flight.aircraft)
+                for flight in data.flights
+                if flight.aircraft
+            },
+            key=lambda value: str(value).upper(),
+        )
+
+        for aircraft in aircraft_types:
+            self.aircraft_combo.addItem(aircraft, aircraft)
+
+        # Default to the latest year when possible.
+        if years:
+            self.year_combo.setCurrentIndex(1)
+
+        self.year_combo.blockSignals(False)
+        self.aircraft_combo.blockSignals(False)
+
+        self.month_slider.blockSignals(True)
+        self.month_slider.setValue(0)
+        self.month_slider.blockSignals(False)
+
+        self.selected_month = 0
+        self.map.reset_animation()
+        self.map.cumulative_routes = []
+        self.map.cumulative_airports = {}
+
+        self.update_month_label()
+        self.update_cumulative_routes()
+        self.update_map()
+
+    def filters_changed(self):
+        if self.timer.isActive():
+            self.timer.stop()
+
+        self.map.stop_animation()
+        self.play_button.setText("▶ Play")
+
+        self.selected_month = self.month_slider.value()
+        self.map.cumulative_routes = []
+        self.map.cumulative_airports = {}
+
+        self.update_month_label()
+        self.update_cumulative_routes()
+        self.update_map()
+
+    def selected_calendar_year(self):
+        """Return the year represented by the current year filter."""
+
+        year = self.year_combo.currentData()
+
+        if year is None:
+            if self.data is not None and self.data.flights:
+                return max(
+                    flight.date.year
+                    for flight in self.data.flights
+                )
+
+            return datetime.now().year
+
+        return year
+
+    def update_month_label(self):
+        """Update the visible month label."""
+
+        year = self.selected_calendar_year()
+
+        self.month_label.setText(
+            f"{self.MONTHS[self.month_slider.value()]} {year}"
+        )
+
+    def month_changed(self, value):
+        """Change the selected month."""
+
+        self.selected_month = value
+
+        if hasattr(self, "map"):
+            self.map.reset_animation()
+
+        self.update_month_label()
+        self.update_cumulative_routes()
+        self.update_map()
+
+    def previous_month(self):
+        """Select the previous month."""
+
+        value = self.month_slider.value()
+
+        if value > self.month_slider.minimum():
+            self.month_slider.setValue(value - 1)
+
+    def next_month(self):
+        """Advance to the next month and preserve the completed month."""
+
+        value = self.month_slider.value()
+
+        if value < self.month_slider.maximum():
+            # The current month's flights have just completed.
+            # Preserve them before switching the selected month.
+            if self.timer.isActive():
+                for route in self.map.routes:
+                    if route not in self.map.cumulative_routes:
+                        self.map.cumulative_routes.append(route)
+
+                self.map.cumulative_airports.update(
+                    self.map.airports
+                )
+
+            self.month_slider.setValue(value + 1)
+
+        elif self.timer.isActive():
+            # End of the selected year.
+            # Leave December's completed traces visible.
+            for route in self.map.routes:
+                if route not in self.map.cumulative_routes:
+                    self.map.cumulative_routes.append(route)
+
+            self.map.cumulative_airports.update(
+                self.map.airports
+            )
+
+            self.timer.stop()
+            self.map.stop_animation()
+            self.play_button.setText("▶ Play")
+            self.update()
+
+    def toggle_play(self):
+        """Start or pause the 15-second-per-month yearly animation."""
+
+        if self.timer.isActive():
+            self.timer.stop()
+            self.map.stop_animation()
+            self.play_button.setText("▶ Play")
+            return
+
+        # Start the selected month. Any months before it remain cumulative.
+        self.update_cumulative_routes()
+        self.update_map()
+        self.map.start_animation()
+        self.timer.start()
+        self.play_button.setText("Ⅱ Pause")
+
+    def update_cumulative_routes(self):
+        """Load all selected flights from months before the selected month."""
+
+        if self.data is None:
+            self.map.cumulative_routes = []
+            self.map.cumulative_airports = {}
+            return
+
+        selected_year = self.selected_calendar_year()
+        selected_aircraft = self.aircraft_combo.currentData()
+        selected_month = self.month_slider.value() + 1
+
+        flights = []
+
+        for flight in self.data.flights:
+            if flight.date.year != selected_year:
+                continue
+
+            if flight.date.month >= selected_month:
+                continue
+
+            aircraft = FuelDatabase.normalize_type(
+                flight.aircraft
+            )
+
+            if (
+                selected_aircraft is not None
+                and aircraft != selected_aircraft
+            ):
+                continue
+
+            flights.append(flight)
+
+        self.map.set_cumulative_flights(
+            flights,
+            self.database,
+        )
+
+    def update_map(self):
+        """Display flights belonging to the selected month."""
+
+        if self.data is None:
+            self.map.set_flights([], self.database)
+            self.flight_count_label.setText("0 flights")
+            return
+
+        selected_year = self.selected_calendar_year()
+        selected_aircraft = self.aircraft_combo.currentData()
+        selected_month = self.month_slider.value() + 1
+
+        flights = []
+
+        for flight in self.data.flights:
+            if flight.date.year != selected_year:
+                continue
+
+            if flight.date.month != selected_month:
+                continue
+
+            aircraft = FuelDatabase.normalize_type(
+                flight.aircraft
+            )
+
+            if (
+                selected_aircraft is not None
+                and aircraft != selected_aircraft
+            ):
+                continue
+
+            flights.append(flight)
+
+        self.map.set_flights(
+            flights,
+            self.database,
+        )
+
+        self.flight_count_label.setText(
+            f"{len(flights):,} flights"
+        )
+
+
 # =========================================================
 # PLACEHOLDER PAGE
 # =========================================================
@@ -3279,8 +4538,6 @@ class MainWindow(QMainWindow):
         )
 
         self.data = None
-
-        self.logbook_path = load_saved_logbook()
 
         self.loader_thread = None
         self.loader_worker = None
@@ -3378,9 +4635,11 @@ class MainWindow(QMainWindow):
         )
 
         self.fuel_page = (
-            PlaceholderPage(
-                "Fuel"
-            )
+            FuelPage()
+        )
+
+        self.map_page = (
+            MapPage()
         )
 
         self.performance_page = (
@@ -3410,6 +4669,10 @@ class MainWindow(QMainWindow):
         )
 
         self.pages.addWidget(
+            self.map_page
+        )
+
+        self.pages.addWidget(
             self.performance_page
         )
 
@@ -3419,7 +4682,8 @@ class MainWindow(QMainWindow):
             ("Aircraft", 2),
             ("Airports", 3),
             ("Fuel", 4),
-            ("Performance", 5),
+            ("Map", 5),
+            ("Performance", 6),
         ]
 
         for text, index in buttons:
@@ -3505,22 +4769,11 @@ class MainWindow(QMainWindow):
             self.load_data
         )
 
-        self.dashboard_page.change_logbook_button.clicked.connect(
-            self.choose_logbook
-        )
-
-        self.dashboard_page.logbook_selected.connect(
-            self.set_logbook
-        )
-
         # -------------------------------------------------
         # INITIAL LOAD
         # -------------------------------------------------
 
-        if self.logbook_path is not None:
-            self.load_data()
-        else:
-            self.dashboard_page.show_logbook_selector()
+        self.load_data()
 
     # =====================================================
     # DATA LOADING
@@ -3537,32 +4790,7 @@ class MainWindow(QMainWindow):
         ):
             return
 
-        if self.logbook_path is None:
-            self.dashboard_page.show_logbook_selector()
-            return
-
-        self.logbook_path = Path(
-            self.logbook_path
-        ).expanduser()
-
-        if (
-            not self.logbook_path.exists()
-            or not self.logbook_path.is_file()
-        ):
-            self.data = None
-            self.dashboard_page.show_logbook_selector(
-                "The previously selected logbook could not be found. "
-                "Please select it again."
-            )
-            return
-
-        self.dashboard_page.show_loading()
-
         self.dashboard_page.refresh_button.setEnabled(
-            False
-        )
-
-        self.dashboard_page.change_logbook_button.setEnabled(
             False
         )
 
@@ -3582,7 +4810,7 @@ class MainWindow(QMainWindow):
 
         self.loader_worker = (
             DataLoaderWorker(
-                self.logbook_path
+                LOGBOOK
             )
         )
 
@@ -3628,67 +4856,6 @@ class MainWindow(QMainWindow):
 
         self.loader_thread.start()
 
-    def choose_logbook(self):
-        """Open the logbook file picker."""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Flight Logbook",
-            "",
-            "PDF files (*.pdf)",
-        )
-
-        if path:
-            self.set_logbook(
-                path
-            )
-
-    def set_logbook(self, path):
-        """Set, persist and load a new user logbook."""
-        path = Path(
-            path
-        ).expanduser()
-
-        if (
-            not path.exists()
-            or not path.is_file()
-            or path.suffix.lower() != ".pdf"
-        ):
-            QMessageBox.warning(
-                self,
-                "Invalid Logbook",
-                "Please select a valid PDF logbook.",
-            )
-            return
-
-        if (
-            self.loader_thread is not None
-            and self.loader_thread.isRunning()
-        ):
-            return
-
-        self.logbook_path = path.resolve()
-
-        try:
-            save_logbook_path(
-                self.logbook_path
-            )
-        except OSError as error:
-            QMessageBox.warning(
-                self,
-                "Could Not Save Setting",
-                f"FlightStats could not save the logbook location:\n{error}",
-            )
-            return
-
-        self.data = None
-
-        self.dashboard_page.show_loading()
-        self.dashboard_page.status_label.setText(
-            f"Loading {self.logbook_path.name}..."
-        )
-
-        self.load_data()
-
     def update_loading_progress(
         self,
         percent,
@@ -3713,8 +4880,7 @@ class MainWindow(QMainWindow):
         self.data = data
 
         self.dashboard_page.set_data(
-            self.data,
-            self.logbook_path,
+            self.data
         )
 
         self.logbook_page.set_data(
@@ -3726,6 +4892,14 @@ class MainWindow(QMainWindow):
         )
 
         self.airports_page.set_data(
+            self.data
+        )
+
+        self.fuel_page.set_data(
+            self.data
+        )
+
+        self.map_page.set_data(
             self.data
         )
 
@@ -3753,10 +4927,6 @@ class MainWindow(QMainWindow):
         """Clean up worker/thread."""
 
         self.dashboard_page.refresh_button.setEnabled(
-            True
-        )
-
-        self.dashboard_page.change_logbook_button.setEnabled(
             True
         )
 
@@ -4088,63 +5258,6 @@ def apply_style(app):
 
         #yearTabs QTabBar::tab:pressed {
             background: #4b5563;
-        }
-
-        #logbookDropZone {
-            background: white;
-            border: 2px dashed #d1d5db;
-            border-radius: 14px;
-            min-height: 210px;
-        }
-
-        #logbookDropZone:hover {
-            border: 2px dashed #6b7280;
-            background: #f9fafb;
-        }
-
-        #logbookDropZone[dragActive="true"] {
-            border: 2px dashed #111827;
-            background: #f3f4f6;
-        }
-
-        #logbookDropIcon {
-            color: #374151;
-            font-size: 30px;
-            font-weight: 700;
-        }
-
-        #logbookDropTitle {
-            color: #111827;
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        #logbookDropSubtitle {
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        #logbookBrowseButton {
-            background: #111827;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 18px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        #logbookBrowseButton:hover {
-            background: #1f2937;
-        }
-
-        #logbookBrowseButton:pressed {
-            background: #374151;
-        }
-
-        #logbookStatusLabel {
-            color: #6b7280;
-            font-size: 12px;
         }
 
         #versionLabel {
