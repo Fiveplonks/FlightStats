@@ -58,3 +58,48 @@ def test_canonical_aircraft_count():
     assert len(
         summary["by_aircraft"]
     ) == 17
+
+
+def test_fuel_provenance_is_preserved():
+    flights = parse_csv(
+        "Tests/fixtures/synthetic_edge_1000.csv"
+    )
+
+    database = FuelDatabase()
+
+    results = calculate_all_fuel(
+        flights,
+        database,
+    )
+
+    profiles = {
+        result["normalized_aircraft"]: result
+        for result in results
+        if result.get("normalized_aircraft")
+    }
+
+    # Every resolved profile must retain provenance.
+    for aircraft in (
+        "B737-800",
+        "A330-900",
+        "ATR72",
+        "PA44",
+    ):
+        assert profiles[aircraft]["source"]
+        assert profiles[aircraft]["method"]
+
+    # Supplementary profiles must retain their specific provenance.
+    assert (
+        profiles["A330-900"]["source"]
+        == "FlightStats estimate"
+    )
+
+    assert (
+        profiles["ATR72"]["source"]
+        == "ATR 72-600 manufacturer data"
+    )
+
+    assert (
+        profiles["PA44"]["source"]
+        == "Piper PA-44-180 POH"
+    )

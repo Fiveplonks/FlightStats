@@ -3339,7 +3339,7 @@ class FuelPage(QWidget):
 
         self.aircraft_table = QTableWidget()
         self.aircraft_table.setObjectName("fuelTable")
-        self.aircraft_table.setColumnCount(7)
+        self.aircraft_table.setColumnCount(8)
         self.aircraft_table.setHorizontalHeaderLabels(
             [
                 "Aircraft",
@@ -3348,6 +3348,7 @@ class FuelPage(QWidget):
                 "Estimated Fuel",
                 "Avg. / Flight",
                 "Avg. / Hour",
+                "Source",
                 "Coverage",
             ]
         )
@@ -3540,6 +3541,8 @@ class FuelPage(QWidget):
                     "minutes": 0,
                     "fuel": 0.0,
                     "fuel_unit": None,
+                    "source": None,
+                    "method": None,
                     "covered": 0,
                 }
 
@@ -3560,6 +3563,8 @@ class FuelPage(QWidget):
 
             item["fuel"] += fuel
             item["fuel_unit"] = display_fuel_unit(unit)
+            item["source"] = result.get("source")
+            item["method"] = result.get("method")
             item["covered"] += 1
             covered_count += 1
 
@@ -3629,6 +3634,7 @@ class FuelPage(QWidget):
             minutes = item["minutes"]
             fuel = item["fuel"]
             unit = item["fuel_unit"]
+            source = item["source"] or "Unknown"
             covered = item["covered"]
 
             average_flight = (
@@ -3674,6 +3680,10 @@ class FuelPage(QWidget):
                         unit,
                     ),
                     average_hour if average_hour is not None else -1,
+                ),
+                (
+                    str(source),
+                    str(source).upper(),
                 ),
                 (
                     coverage_text,

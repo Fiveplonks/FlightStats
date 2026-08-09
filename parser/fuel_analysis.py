@@ -24,6 +24,8 @@ def calculate_fuel_for_flight(
             "unit": None,
             "fuel_rate": None,
             "normalized_aircraft": None,
+            "source": None,
+            "method": None,
         }
 
     fuel_rate = profile["average_burn"]
@@ -43,6 +45,8 @@ def calculate_fuel_for_flight(
         "normalized_aircraft": profile.get(
             "normalized_type"
         ),
+        "source": profile.get("source"),
+        "method": profile.get("method"),
     }
 
 
