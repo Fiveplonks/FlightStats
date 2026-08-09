@@ -398,6 +398,18 @@ class DashboardPage(QWidget):
         self.year_tabs.setObjectName(
             "yearTabs"
         )
+
+        # Allow the year buttons to scroll horizontally when there
+        # are more years than can fit in the available window width.
+        year_bar = self.year_tabs.tabBar()
+
+        year_bar.setUsesScrollButtons(
+            True
+        )
+
+        year_bar.setExpanding(
+            False
+        )
         self.year_tabs.currentChanged.connect(
             self.year_tab_changed
         )
@@ -469,27 +481,23 @@ class DashboardPage(QWidget):
             reverse=True,
         )
 
+        # ALL is the default and is intentionally placed first.
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
         for year in years:
             self.year_tabs.addTab(
                 QWidget(),
                 str(year),
             )
 
-        self.year_tabs.addTab(
-            QWidget(),
-            "ALL",
-        )
-
         self.year_tabs.blockSignals(False)
 
-        if years:
-            self.year_tabs.setCurrentIndex(0)
-            self.update_for_year(years[0])
-        else:
-            self.year_tabs.setCurrentIndex(
-                self.year_tabs.count() - 1
-            )
-            self.update_for_year(None)
+        # Default to ALL years.
+        self.year_tabs.setCurrentIndex(0)
+        self.update_for_year(None)
 
     def year_tab_changed(self, index):
         """Update Dashboard when the selected year changes."""
@@ -830,6 +838,18 @@ class LogbookPage(QWidget):
             "yearTabs"
         )
 
+        # Allow the year buttons to scroll horizontally when there
+        # are more years than can fit in the available window width.
+        year_bar = self.year_tabs.tabBar()
+
+        year_bar.setUsesScrollButtons(
+            True
+        )
+
+        year_bar.setExpanding(
+            False
+        )
+
         self.year_tabs.currentChanged.connect(
             self.year_tab_changed
         )
@@ -1022,27 +1042,26 @@ class LogbookPage(QWidget):
             reverse=True,
         )
 
+        # ALL is the default and is intentionally placed first.
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
         for year in years:
             self.year_tabs.addTab(
                 QWidget(),
                 str(year),
             )
 
-        self.year_tabs.addTab(
-            QWidget(),
-            "ALL",
-        )
-
-        self.selected_year = (
-            years[0]
-            if years
-            else None
-        )
+        self.selected_year = None
 
         self.year_tabs.blockSignals(
             False
         )
 
+        # Explicitly populate the initial ALL-years selection.
+        self.year_tabs.setCurrentIndex(0)
         self.apply_filters()
 
     def year_tab_changed(
@@ -1311,6 +1330,486 @@ class LogbookPage(QWidget):
         )
 
 
+
+# =========================================================
+# AIRCRAFT PAGE
+# =========================================================
+
+
+class AircraftPage(QWidget):
+    """Aircraft statistics for the selected year."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.data = None
+        self.selected_year = None
+        self.database = FuelDatabase()
+
+        layout = QVBoxLayout(
+            self
+        )
+
+        layout.setContentsMargins(
+            40,
+            35,
+            40,
+            35,
+        )
+
+        layout.setSpacing(
+            15
+        )
+
+        title = QLabel(
+            "Aircraft"
+        )
+
+        title.setObjectName(
+            "pageTitle"
+        )
+
+        subtitle = QLabel(
+            "Aircraft utilization and performance"
+        )
+
+        subtitle.setObjectName(
+            "pageSubtitle"
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        layout.addWidget(
+            subtitle
+        )
+
+        # -------------------------------------------------
+        # YEAR TABS
+        # -------------------------------------------------
+
+        self.year_tabs = QTabWidget()
+
+        self.year_tabs.setObjectName(
+            "yearTabs"
+        )
+
+        # Allow the year buttons to scroll horizontally when there
+        # are more years than can fit in the available window width.
+        year_bar = self.year_tabs.tabBar()
+
+        year_bar.setUsesScrollButtons(
+            True
+        )
+
+        year_bar.setExpanding(
+            False
+        )
+
+        self.year_tabs.currentChanged.connect(
+            self.year_tab_changed
+        )
+
+        layout.addWidget(
+            self.year_tabs
+        )
+
+        # -------------------------------------------------
+        # TABLE
+        # -------------------------------------------------
+
+        self.table = QTableWidget()
+
+        self.table.setObjectName(
+            "aircraftTable"
+        )
+
+        self.table.setColumnCount(
+            8
+        )
+
+        self.table.setHorizontalHeaderLabels(
+            [
+                "Aircraft",
+                "Flights",
+                "Share",
+                "Flight Time",
+                "Distance",
+                "Avg. Speed",
+                "Registrations",
+                "Fuel",
+            ]
+        )
+
+        self.table.setSortingEnabled(
+            True
+        )
+
+        self.table.setSelectionBehavior(
+            QTableWidget.SelectRows
+        )
+
+        self.table.setSelectionMode(
+            QTableWidget.SingleSelection
+        )
+
+        self.table.setEditTriggers(
+            QTableWidget.NoEditTriggers
+        )
+
+        self.table.verticalHeader().setVisible(
+            False
+        )
+
+        header = (
+            self.table.horizontalHeader()
+        )
+
+        header.setStretchLastSection(
+            True
+        )
+
+        for column in range(
+            self.table.columnCount()
+        ):
+            header.setSectionResizeMode(
+                column,
+                QHeaderView.ResizeToContents,
+            )
+
+        layout.addWidget(
+            self.table,
+            1,
+        )
+
+    def set_data(
+        self,
+        data,
+    ):
+        """Load shared FlightStats data."""
+
+        self.data = data
+
+        self.build_year_tabs()
+
+    def build_year_tabs(self):
+        """Build one tab for every year in the logbook."""
+
+        self.year_tabs.blockSignals(
+            True
+        )
+
+        self.year_tabs.clear()
+
+        if self.data is None:
+            self.year_tabs.blockSignals(
+                False
+            )
+            return
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self.data.flights
+            },
+            reverse=True,
+        )
+
+        # ALL is the default and is intentionally placed first.
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
+        for year in years:
+            self.year_tabs.addTab(
+                QWidget(),
+                str(year),
+            )
+
+        self.selected_year = None
+
+        self.year_tabs.blockSignals(
+            False
+        )
+
+        # currentChanged is blocked while building,
+        # so explicitly populate the initial ALL-years selection.
+        self.year_tabs.setCurrentIndex(0)
+        self.update_page()
+
+    def year_tab_changed(
+        self,
+        index,
+    ):
+        """Update aircraft statistics for the selected year."""
+
+        if (
+            self.data is None
+            or index < 0
+        ):
+            return
+
+        text = self.year_tabs.tabText(
+            index
+        )
+
+        self.selected_year = (
+            None
+            if text == "ALL"
+            else int(text)
+        )
+
+        self.update_page()
+
+    def update_page(self):
+        """Calculate and display aircraft statistics."""
+
+        if self.data is None:
+            return
+
+        selected_indexes = []
+
+        for index, flight in enumerate(
+            self.data.flights
+        ):
+            if (
+                self.selected_year is None
+                or flight.date.year
+                == self.selected_year
+            ):
+                selected_indexes.append(
+                    index
+                )
+
+        total_flights = len(
+            selected_indexes
+        )
+
+        stats = {}
+
+        for index in selected_indexes:
+            flight = self.data.flights[index]
+
+            aircraft = (
+                self.database.normalize_type(
+                    flight.aircraft
+                )
+            )
+
+            if aircraft not in stats:
+                stats[aircraft] = {
+                    "flights": 0,
+                    "minutes": 0,
+                    "distance": 0.0,
+                    "speed_total": 0.0,
+                    "speed_count": 0,
+                    "registrations": set(),
+                    "fuel": 0.0,
+                    "fuel_unit": None,
+                }
+
+            item = stats[aircraft]
+
+            item["flights"] += 1
+
+            item["minutes"] += (
+                flight.flight_minutes or 0
+            )
+
+            if flight.registration:
+                item["registrations"].add(
+                    flight.registration
+                )
+
+            # ---------------------------------------------
+            # DISTANCE / SPEED
+            # ---------------------------------------------
+
+            if index < len(
+                self.data.flight_distances
+            ):
+                distance_result = (
+                    self.data.flight_distances[
+                        index
+                    ]
+                )
+
+                if isinstance(
+                    distance_result,
+                    dict,
+                ):
+                    distance = (
+                        distance_result.get(
+                            "distance_km"
+                        )
+                    )
+
+                    if distance is not None:
+                        item["distance"] += (
+                            distance
+                        )
+
+                        if flight.flight_minutes:
+                            speed = (
+                                distance
+                                / flight.flight_minutes
+                                * 60
+                            )
+
+                            item[
+                                "speed_total"
+                            ] += speed
+
+                            item[
+                                "speed_count"
+                            ] += 1
+
+            # ---------------------------------------------
+            # FUEL
+            # ---------------------------------------------
+
+            if index < len(
+                self.data.fuel_results
+            ):
+                fuel_result = (
+                    self.data.fuel_results[
+                        index
+                    ]
+                )
+
+                if isinstance(
+                    fuel_result,
+                    dict,
+                ):
+                    fuel = fuel_result.get(
+                        "fuel"
+                    )
+
+                    unit = fuel_result.get(
+                        "unit"
+                    )
+
+                    if fuel is not None:
+                        item["fuel"] += fuel
+
+                        if (
+                            item["fuel_unit"]
+                            is None
+                        ):
+                            item[
+                                "fuel_unit"
+                            ] = (
+                                display_fuel_unit(
+                                    unit
+                                )
+                                if unit
+                                else None
+                            )
+
+        self.table.setSortingEnabled(
+            False
+        )
+
+        self.table.setRowCount(
+            len(stats)
+        )
+
+        sorted_aircraft = sorted(
+            stats,
+            key=lambda aircraft: (
+                -stats[aircraft][
+                    "flights"
+                ],
+                aircraft,
+            ),
+        )
+
+        for row, aircraft in enumerate(
+            sorted_aircraft
+        ):
+            item = stats[aircraft]
+
+            flights = item[
+                "flights"
+            ]
+
+            share = (
+                flights
+                / total_flights
+                * 100
+                if total_flights
+                else 0
+            )
+
+            average_speed = (
+                item["speed_total"]
+                / item["speed_count"]
+                if item["speed_count"]
+                else None
+            )
+
+            fuel_text = "—"
+
+            if item["fuel_unit"]:
+                fuel_text = (
+                    f'{item["fuel"]:,.1f} '
+                    f'{item["fuel_unit"]}'
+                )
+
+            values = [
+                aircraft,
+                f"{flights:,}",
+                f"{share:.1f}%",
+                format_hours(
+                    item["minutes"]
+                ),
+                f'{item["distance"]:,.1f} km',
+                (
+                    "—"
+                    if average_speed is None
+                    else (
+                        f"{average_speed:,.1f} "
+                        "km/h"
+                    )
+                ),
+                f'{len(item["registrations"]):,}',
+                fuel_text,
+            ]
+
+            for column, value in enumerate(
+                values
+            ):
+                self.set_item(
+                    row,
+                    column,
+                    value,
+                )
+
+        self.table.setSortingEnabled(
+            True
+        )
+
+    def set_item(
+        self,
+        row,
+        column,
+        text,
+    ):
+        """Set one table cell."""
+
+        item = QTableWidgetItem(
+            str(text)
+        )
+
+        self.table.setItem(
+            row,
+            column,
+            item,
+        )
+
+
 # =========================================================
 # PLACEHOLDER PAGE
 # =========================================================
@@ -1461,9 +1960,7 @@ class MainWindow(QMainWindow):
         )
 
         self.aircraft_page = (
-            PlaceholderPage(
-                "Aircraft"
-            )
+            AircraftPage()
         )
 
         self.airports_page = (
@@ -1715,6 +2212,10 @@ class MainWindow(QMainWindow):
         )
 
         self.logbook_page.set_data(
+            self.data
+        )
+
+        self.aircraft_page.set_data(
             self.data
         )
 
@@ -1977,24 +2478,60 @@ def apply_style(app):
             padding: 8px;
         }
 
+        #aircraftTable {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            gridline-color: #eef0f2;
+            selection-background-color: #e5e7eb;
+            selection-color: #111827;
+        }
+
+        #aircraftTable QHeaderView::section {
+            background: #f9fafb;
+            color: #4b5563;
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 10px 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        #aircraftTable QTableWidgetItem {
+            padding: 8px;
+        }
+
         #yearTabs::pane {
             border: none;
             background: transparent;
         }
 
         #yearTabs QTabBar::tab {
-            background: transparent;
-            color: #6b7280;
-            border: none;
-            border-bottom: 2px solid transparent;
-            padding: 9px 18px;
-            margin-right: 4px;
+            background: #111827;
+            color: #d1d5db;
+            border: 1px solid #111827;
+            border-radius: 7px;
+            padding: 9px 20px;
+            margin-right: 6px;
+            min-width: 58px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        #yearTabs QTabBar::tab:hover {
+            background: #1f2937;
+            color: white;
         }
 
         #yearTabs QTabBar::tab:selected {
-            color: #111827;
+            background: #374151;
+            color: white;
+            border: 1px solid #374151;
             font-weight: 700;
-            border-bottom: 2px solid #111827;
+        }
+
+        #yearTabs QTabBar::tab:pressed {
+            background: #4b5563;
         }
 
         #versionLabel {

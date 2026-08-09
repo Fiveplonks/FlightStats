@@ -1,3 +1,8 @@
+import hashlib
+import json
+from datetime import date, time
+from pathlib import Path
+
 from parser.easa_pdf import parse_logbook
 from parser.airports import AirportDatabase
 from parser.flight_analysis import (
@@ -13,6 +18,238 @@ from parser.performance_analysis import (
     calculate_all_sector_speeds,
     summarize_sector_speed,
 )
+
+
+CACHE_VERSION = 1
+
+
+def _file_sha256(path):
+    """Return the SHA-256 digest of a file."""
+
+    digest = hashlib.sha256()
+
+    with open(
+        path,
+        "rb",
+    ) as file:
+        for chunk in iter(
+            lambda: file.read(1024 * 1024),
+            b"",
+        ):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def _parser_signature():
+    """Return a signature for the parser code used by the cache."""
+
+    parser_files = [
+        Path(__file__).resolve().parent
+        / "parser"
+        / "easa_pdf.py",
+        Path(__file__).resolve().parent
+        / "parser"
+        / "models.py",
+    ]
+
+    digest = hashlib.sha256()
+
+    for path in parser_files:
+        digest.update(
+            path.read_bytes()
+        )
+
+    return digest.hexdigest()
+
+
+def _cache_path():
+    """Return the local path for the parsed-logbook cache."""
+
+    cache_directory = (
+        Path(__file__).resolve().parent
+        / "data"
+        / "cache"
+    )
+
+    cache_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    return (
+        cache_directory
+        / "logbook_parsed.json"
+    )
+
+
+def _time_to_string(value):
+    """Serialize a datetime.time value."""
+
+    if value is None:
+        return None
+
+    return value.isoformat()
+
+
+def _string_to_time(value):
+    """Deserialize a datetime.time value."""
+
+    if value is None:
+        return None
+
+    return time.fromisoformat(
+        value
+    )
+
+
+def _flight_to_dict(flight):
+    """Serialize one Flight dataclass."""
+
+    return {
+        "date": flight.date.isoformat(),
+        "departure": flight.departure,
+        "departure_time": _time_to_string(
+            flight.departure_time
+        ),
+        "arrival": flight.arrival,
+        "arrival_time": _time_to_string(
+            flight.arrival_time
+        ),
+        "aircraft": flight.aircraft,
+        "registration": flight.registration,
+        "flight_minutes": flight.flight_minutes,
+    }
+
+
+def _dict_to_flight(item):
+    """Deserialize one Flight dataclass."""
+
+    from parser.models import Flight
+
+    return Flight(
+        date=date.fromisoformat(
+            item["date"]
+        ),
+        departure=item["departure"],
+        departure_time=_string_to_time(
+            item.get("departure_time")
+        ),
+        arrival=item["arrival"],
+        arrival_time=_string_to_time(
+            item.get("arrival_time")
+        ),
+        aircraft=item["aircraft"],
+        registration=item["registration"],
+        flight_minutes=item.get(
+            "flight_minutes"
+        ),
+    )
+
+
+def _load_cached_flights(
+    logbook_path,
+):
+    """
+    Load parsed flights from cache when the PDF and parser
+    have not changed since the cache was created.
+    """
+
+    cache_path = _cache_path()
+
+    if not cache_path.exists():
+        return None
+
+    try:
+        with open(
+            cache_path,
+            "r",
+            encoding="utf-8",
+        ) as file:
+            cache = json.load(file)
+
+        if cache.get(
+            "cache_version"
+        ) != CACHE_VERSION:
+            return None
+
+        if cache.get(
+            "logbook_sha256"
+        ) != _file_sha256(
+            logbook_path
+        ):
+            return None
+
+        if cache.get(
+            "parser_signature"
+        ) != _parser_signature():
+            return None
+
+        return [
+            _dict_to_flight(item)
+            for item in cache.get(
+                "flights",
+                [],
+            )
+        ]
+
+    except Exception:
+        # A corrupt or incompatible cache must never prevent
+        # FlightStats from loading the original logbook.
+        return None
+
+
+def _save_cached_flights(
+    logbook_path,
+    flights,
+):
+    """Save parsed flights to the local JSON cache."""
+
+    cache_path = _cache_path()
+
+    cache = {
+        "cache_version": CACHE_VERSION,
+        "logbook_sha256": _file_sha256(
+            logbook_path
+        ),
+        "parser_signature": _parser_signature(),
+        "flights": [
+            _flight_to_dict(flight)
+            for flight in flights
+        ],
+    }
+
+    temporary_path = cache_path.with_suffix(
+        ".tmp"
+    )
+
+    try:
+        with open(
+            temporary_path,
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                cache,
+                file,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        temporary_path.replace(
+            cache_path
+        )
+
+    except Exception:
+        # Caching is an optimization. A cache write failure must
+        # never break a successful logbook load.
+        try:
+            temporary_path.unlink(
+                missing_ok=True
+            )
+        except Exception:
+            pass
+
 
 
 class FlightStatsData:
@@ -83,30 +320,39 @@ class FlightStatsData:
         # PARSE LOGBOOK
         # =================================================
 
-        def logbook_progress(
-            percent,
-            message,
-        ):
-            """
-            Convert parser progress (0–100)
-            into overall progress (0–20).
-            """
+        self.report_progress(
+            0,
+            "Checking logbook cache...",
+        )
 
-            overall_percent = int(
-                percent * 0.20
+        self.flights = _load_cached_flights(
+            self.logbook_path
+        )
+
+        if self.flights is None:
+            self.report_progress(
+                2,
+                "Parsing logbook...",
+            )
+
+            self.flights = parse_logbook(
+                self.logbook_path
+            )
+
+            _save_cached_flights(
+                self.logbook_path,
+                self.flights,
             )
 
             self.report_progress(
-                overall_percent,
-                message,
+                18,
+                "Parsed logbook cached",
             )
-
-        self.flights = parse_logbook(
-            self.logbook_path,
-            progress_callback=(
-                logbook_progress
-            ),
-        )
+        else:
+            self.report_progress(
+                18,
+                "Loaded parsed logbook from cache",
+            )
 
         self.total_flight_minutes = sum(
             flight.flight_minutes
@@ -116,7 +362,7 @@ class FlightStatsData:
         self.report_progress(
             20,
             (
-                f"Logbook parsed — "
+                f"Logbook ready — "
                 f"{len(self.flights):,} flights found"
             ),
         )
@@ -175,7 +421,8 @@ class FlightStatsData:
             overall_percent = (
                 35
                 + int(
-                    percent * 0.30
+                    percent
+                    * 0.30
                 )
             )
 
@@ -252,7 +499,8 @@ class FlightStatsData:
             overall_percent = (
                 72
                 + int(
-                    percent * 0.12
+                    percent
+                    * 0.12
                 )
             )
 
@@ -303,7 +551,8 @@ class FlightStatsData:
             overall_percent = (
                 87
                 + int(
-                    percent * 0.10
+                    percent
+                    * 0.10
                 )
             )
 

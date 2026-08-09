@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QProgressBar,
     QStackedWidget,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -390,6 +391,22 @@ class DashboardPage(QWidget):
         )
 
         # -------------------------------------------------
+        # YEAR TABS
+        # -------------------------------------------------
+
+        self.year_tabs = QTabWidget()
+        self.year_tabs.setObjectName(
+            "yearTabs"
+        )
+        self.year_tabs.currentChanged.connect(
+            self.year_tab_changed
+        )
+
+        self.layout.addWidget(
+            self.year_tabs
+        )
+
+        # -------------------------------------------------
         # AIRCRAFT
         # -------------------------------------------------
 
@@ -432,23 +449,223 @@ class DashboardPage(QWidget):
 
         self.layout.addStretch()
 
+    def set_data(self, data):
+        """Load data and build Dashboard year tabs."""
+
+        self._data = data
+        self.build_year_tabs()
+
+    def build_year_tabs(self):
+        """Create one tab for every year in the logbook."""
+
+        self.year_tabs.blockSignals(True)
+        self.year_tabs.clear()
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self._data.flights
+            },
+            reverse=True,
+        )
+
+        for year in years:
+            self.year_tabs.addTab(
+                QWidget(),
+                str(year),
+            )
+
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
+        self.year_tabs.blockSignals(False)
+
+        if years:
+            self.year_tabs.setCurrentIndex(0)
+            self.update_for_year(years[0])
+        else:
+            self.year_tabs.setCurrentIndex(
+                self.year_tabs.count() - 1
+            )
+            self.update_for_year(None)
+
+    def year_tab_changed(self, index):
+        """Update Dashboard when the selected year changes."""
+
+        if index < 0:
+            return
+
+        text = self.year_tabs.tabText(index)
+
+        if text == "ALL":
+            year = None
+        else:
+            year = int(text)
+
+        self.update_for_year(year)
+
+    def update_for_year(self, year):
+        """Update Dashboard statistics for one year or all years."""
+
+        flights = [
+            flight
+            for flight in self._data.flights
+            if year is None
+            or flight.date.year == year
+        ]
+
+        indexes = [
+            index
+            for index, flight in enumerate(
+                self._data.flights
+            )
+            if year is None
+            or flight.date.year == year
+        ]
+
+        total_minutes = sum(
+            flight.flight_minutes or 0
+            for flight in flights
+        )
+
+        total_distance = 0.0
+        jet_fuel = 0.0
+        piston_fuel = 0.0
+
+        for index in indexes:
+            if index < len(
+                self._data.flight_distances
+            ):
+                result = self._data.flight_distances[index]
+
+                if isinstance(result, dict):
+                    distance = result.get(
+                        "distance_km"
+                    )
+
+                    if distance is not None:
+                        total_distance += distance
+
+            if index < len(
+                self._data.fuel_results
+            ):
+                result = self._data.fuel_results[index]
+
+                if isinstance(result, dict):
+                    fuel = result.get("fuel")
+                    unit = result.get("unit")
+
+                    if fuel is not None:
+                        if unit == "kg/h":
+                            jet_fuel += fuel
+                        elif unit == "L/h":
+                            piston_fuel += fuel
+
+        airports = set()
+
+        for flight in flights:
+            airports.add(flight.departure)
+            airports.add(flight.arrival)
+
+        self.flights_card.set_value(
+            f"{len(flights):,}"
+        )
+        self.time_card.set_value(
+            format_hours(total_minutes)
+        )
+        self.distance_card.set_value(
+            f"{total_distance:,.1f} km"
+        )
+        self.jet_fuel_card.set_value(
+            f"{jet_fuel:,.1f} kg"
+        )
+        self.piston_fuel_card.set_value(
+            f"{piston_fuel:,.1f} L"
+        )
+        self.airports_card.set_value(
+            f"{len(airports):,}"
+        )
+
+        self.update_filtered_aircraft(
+            flights
+        )
+
+    def update_filtered_aircraft(self, flights):
+        """Update aircraft rows for the selected year."""
+
+        self.clear_aircraft()
+
+        database = FuelDatabase()
+        aircraft_counts = {}
+        aircraft_times = {}
+
+        for flight in flights:
+            aircraft = database.normalize_type(
+                flight.aircraft
+            )
+
+            aircraft_counts[aircraft] = (
+                aircraft_counts.get(aircraft, 0) + 1
+            )
+            aircraft_times[aircraft] = (
+                aircraft_times.get(aircraft, 0)
+                + (flight.flight_minutes or 0)
+            )
+
+        for aircraft in sorted(
+            aircraft_counts,
+            key=lambda item: (
+                -aircraft_counts[item],
+                item,
+            ),
+        ):
+            row_widget = QWidget()
+            row = QHBoxLayout(row_widget)
+            row.setContentsMargins(0, 0, 0, 0)
+
+            aircraft_label = QLabel(aircraft)
+            aircraft_label.setObjectName(
+                "aircraftName"
+            )
+
+            count_label = QLabel(
+                f"{aircraft_counts[aircraft]} flights"
+            )
+            count_label.setObjectName(
+                "aircraftCount"
+            )
+
+            time_label = QLabel(
+                format_hours(
+                    aircraft_times[aircraft]
+                )
+            )
+            time_label.setObjectName(
+                "aircraftTime"
+            )
+
+            row.addWidget(aircraft_label)
+            row.addStretch()
+            row.addWidget(count_label)
+            row.addWidget(time_label)
+
+            self.aircraft_layout.addWidget(
+                row_widget
+            )
+
     def clear_aircraft(self):
         """Remove aircraft rows."""
 
-        while (
-            self.aircraft_layout.count()
-            > 0
-        ):
-            item = (
-                self.aircraft_layout.takeAt(
-                    0
-                )
-            )
+        while self.aircraft_layout.count() > 0:
+            item = self.aircraft_layout.takeAt(0)
 
             widget = item.widget()
 
             if widget is not None:
                 widget.deleteLater()
+
 
     def update_aircraft(
         self,
@@ -560,6 +777,7 @@ class LogbookPage(QWidget):
         super().__init__()
 
         self.data = None
+        self.selected_year = None
 
         self.database = FuelDatabase()
 
@@ -600,6 +818,24 @@ class LogbookPage(QWidget):
 
         layout.addWidget(
             subtitle
+        )
+
+        # -------------------------------------------------
+        # YEAR TABS
+        # -------------------------------------------------
+
+        self.year_tabs = QTabWidget()
+
+        self.year_tabs.setObjectName(
+            "yearTabs"
+        )
+
+        self.year_tabs.currentChanged.connect(
+            self.year_tab_changed
+        )
+
+        layout.addWidget(
+            self.year_tabs
         )
 
         # -------------------------------------------------
@@ -733,7 +969,7 @@ class LogbookPage(QWidget):
         self,
         data,
     ):
-        """Load data into the logbook."""
+        """Load data and build the Logbook year tabs."""
 
         self.data = data
 
@@ -750,7 +986,6 @@ class LogbookPage(QWidget):
         aircraft_types = set()
 
         for flight in data.flights:
-
             aircraft_types.add(
                 self.database.normalize_type(
                     flight.aircraft
@@ -760,13 +995,76 @@ class LogbookPage(QWidget):
         for aircraft in sorted(
             aircraft_types
         ):
-
             self.aircraft_filter.addItem(
                 aircraft
             )
 
         self.aircraft_filter.blockSignals(
             False
+        )
+
+        self.build_year_tabs()
+
+    def build_year_tabs(self):
+        """Build one tab for each year in the logbook."""
+
+        self.year_tabs.blockSignals(
+            True
+        )
+
+        self.year_tabs.clear()
+
+        years = sorted(
+            {
+                flight.date.year
+                for flight in self.data.flights
+            },
+            reverse=True,
+        )
+
+        for year in years:
+            self.year_tabs.addTab(
+                QWidget(),
+                str(year),
+            )
+
+        self.year_tabs.addTab(
+            QWidget(),
+            "ALL",
+        )
+
+        self.selected_year = (
+            years[0]
+            if years
+            else None
+        )
+
+        self.year_tabs.blockSignals(
+            False
+        )
+
+        self.apply_filters()
+
+    def year_tab_changed(
+        self,
+        index,
+    ):
+        """Filter the Logbook to the selected year."""
+
+        if (
+            self.data is None
+            or index < 0
+        ):
+            return
+
+        tab_text = self.year_tabs.tabText(
+            index
+        )
+
+        self.selected_year = (
+            None
+            if tab_text == "ALL"
+            else int(tab_text)
         )
 
         self.apply_filters()
@@ -792,6 +1090,13 @@ class LogbookPage(QWidget):
         for index, flight in enumerate(
             self.data.flights
         ):
+
+            if (
+                self.selected_year is not None
+                and flight.date.year
+                != self.selected_year
+            ):
+                continue
 
             aircraft = (
                 self.database.normalize_type(
@@ -884,7 +1189,7 @@ class LogbookPage(QWidget):
                 row,
                 0,
                 flight.date.strftime(
-                    "%Y-%m-%d"
+                    "%d-%m-%Y"
                 ),
             )
 
@@ -1405,7 +1710,9 @@ class MainWindow(QMainWindow):
 
         self.data = data
 
-        self.update_dashboard()
+        self.dashboard_page.set_data(
+            self.data
+        )
 
         self.logbook_page.set_data(
             self.data
@@ -1452,53 +1759,26 @@ class MainWindow(QMainWindow):
     # =====================================================
 
     def update_dashboard(self):
-        """Update Dashboard from shared data."""
+        """Update Dashboard using the selected year tab."""
 
         if self.data is None:
             return
 
-        self.dashboard_page.flights_card.set_value(
-            f"{self.data.total_flights:,}"
+        index = self.dashboard_page.year_tabs.currentIndex()
+
+        if index < 0:
+            return
+
+        text = self.dashboard_page.year_tabs.tabText(index)
+
+        year = (
+            None
+            if text == "ALL"
+            else int(text)
         )
 
-        self.dashboard_page.time_card.set_value(
-            format_hours(
-                self.data.total_flight_minutes
-            )
-        )
-
-        self.dashboard_page.distance_card.set_value(
-            f"{self.data.total_distance_km:,.1f} km"
-        )
-
-        fuel_totals = (
-            self.data.fuel_totals
-        )
-
-        jet_fuel = fuel_totals.get(
-            "kg/h",
-            0,
-        )
-
-        piston_fuel = fuel_totals.get(
-            "L/h",
-            0,
-        )
-
-        self.dashboard_page.jet_fuel_card.set_value(
-            f"{jet_fuel:,.1f} kg"
-        )
-
-        self.dashboard_page.piston_fuel_card.set_value(
-            f"{piston_fuel:,.1f} L"
-        )
-
-        self.dashboard_page.airports_card.set_value(
-            f"{len(self.data.airports):,}"
-        )
-
-        self.dashboard_page.update_aircraft(
-            self.data
+        self.dashboard_page.update_for_year(
+            year
         )
 
 
@@ -1695,6 +1975,26 @@ def apply_style(app):
 
         #logbookTable QTableWidgetItem {
             padding: 8px;
+        }
+
+        #yearTabs::pane {
+            border: none;
+            background: transparent;
+        }
+
+        #yearTabs QTabBar::tab {
+            background: transparent;
+            color: #6b7280;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 9px 18px;
+            margin-right: 4px;
+        }
+
+        #yearTabs QTabBar::tab:selected {
+            color: #111827;
+            font-weight: 700;
+            border-bottom: 2px solid #111827;
         }
 
         #versionLabel {
