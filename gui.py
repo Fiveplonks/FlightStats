@@ -12,7 +12,7 @@ from PySide6.QtCore import (
     QEvent,
     QTimer,
 )
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QBrush
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QBrush, QPalette, QPalette
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+QScrollArea,
+QSizePolicy,
     QHeaderView,
     QListWidget,
     QListWidgetItem,
@@ -808,8 +810,35 @@ class DashboardPage(QWidget):
             "card"
         )
 
+        # Scrollable aircraft list so rows keep their
+        # natural height regardless of aircraft count.
+        self.aircraft_scroll = QScrollArea()
+
+        self.aircraft_scroll.setWidgetResizable(
+            True
+        )
+
+        self.aircraft_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.aircraft_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.aircraft_scroll.setFrameShape(
+            QFrame.Shape.NoFrame
+        )
+
+        self.aircraft_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+
+        self.aircraft_content = QWidget()
+
         self.aircraft_layout = QVBoxLayout(
-            self.aircraft_container
+            self.aircraft_content
         )
 
         self.aircraft_layout.setContentsMargins(
@@ -821,6 +850,25 @@ class DashboardPage(QWidget):
 
         self.aircraft_layout.setSpacing(
             8
+        )
+
+        self.aircraft_scroll.setWidget(
+            self.aircraft_content
+        )
+
+        container_layout = QVBoxLayout(
+            self.aircraft_container
+        )
+
+        container_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        container_layout.addWidget(
+            self.aircraft_scroll
         )
 
         self.layout.addWidget(
@@ -5493,11 +5541,7 @@ class MainWindow(QMainWindow):
             "FlightStats"
         )
 
-        self.resize(
-            1300,
-            850,
-        )
-
+        # -------------------------------------------------
         self.data = None
 
         self.logbook_path = load_saved_logbook()
@@ -5746,6 +5790,49 @@ class MainWindow(QMainWindow):
             self.load_data()
         else:
             self.dashboard_page.show_logbook_selector()
+
+        # -------------------------------------------------
+        # RESPONSIVE WINDOW SIZE
+        # -------------------------------------------------
+        # Apply the final window geometry after all pages,
+        # layouts and widgets have been constructed.
+
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry()
+
+        width = min(
+            int(available.width() * 0.90),
+            1800,
+        )
+
+        height = min(
+            int(available.height() * 0.90),
+            1100,
+        )
+
+        width = min(
+            max(width, 1100),
+            available.width(),
+        )
+
+        height = min(
+            max(height, 700),
+            available.height(),
+        )
+
+        self.resize(
+            width,
+            height,
+        )
+
+        # Center the window within the usable screen area.
+        frame = self.frameGeometry()
+        frame.moveCenter(
+            available.center()
+        )
+        self.move(
+            frame.topLeft()
+        )
 
     # =====================================================
     # DATA LOADING
@@ -6415,6 +6502,350 @@ def apply_style(app):
         }
         """
     )
+
+    # -------------------------------------------------
+    # DARK MODE SUPPORT
+    # -------------------------------------------------
+    # macOS can switch between Light and Dark appearance.
+    # The base stylesheet defines the FlightStats light theme.
+    # When Qt reports a dark system palette, apply a general
+    # dark-mode layer so all Qt controls remain readable.
+
+    if app.palette().window().color().lightness() < 128:
+        app.setStyleSheet(
+            app.styleSheet()
+            + """
+
+            /* ---------------------------------------------
+               APPLICATION BACKGROUND
+               --------------------------------------------- */
+
+            QMainWindow {
+                background: #111827;
+            }
+
+            QWidget {
+                color: #f9fafb;
+            }
+
+            #content {
+                background: #111827;
+            }
+
+            /* ---------------------------------------------
+               TEXT
+               --------------------------------------------- */
+
+            QLabel {
+                color: #f9fafb;
+            }
+
+            #pageTitle,
+            #sectionTitle {
+                color: #f9fafb;
+            }
+
+            #pageSubtitle,
+            #statusLabel,
+            #cardLabel,
+            #aircraftCount {
+                color: #9ca3af;
+            }
+
+            #aircraftName {
+                color: #f9fafb;
+            }
+
+            #aircraftTime {
+                color: #d1d5db;
+            }
+
+            #cardValue {
+                color: #f9fafb;
+            }
+
+            #logbookStatusLabel,
+            #versionLabel {
+                color: #9ca3af;
+            }
+
+            /* ---------------------------------------------
+               CARDS
+               --------------------------------------------- */
+
+            #card {
+                background: #1f2937;
+                border: 1px solid #374151;
+            }
+
+            /* ---------------------------------------------
+               TEXT INPUTS
+               --------------------------------------------- */
+
+            QLineEdit {
+                background: #1f2937;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+            }
+
+            QLineEdit:focus {
+                border: 1px solid #9ca3af;
+            }
+
+            QLineEdit:disabled {
+                background: #374151;
+                color: #9ca3af;
+            }
+
+            QLineEdit::placeholder {
+                color: #9ca3af;
+            }
+
+            #searchBox,
+            #filterBox {
+                background: #1f2937;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+            }
+
+            /* ---------------------------------------------
+               COMBO BOXES
+               --------------------------------------------- */
+
+            QComboBox {
+                background: #1f2937;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+            }
+
+            QComboBox:hover {
+                border: 1px solid #6b7280;
+            }
+
+            QComboBox:focus {
+                border: 1px solid #9ca3af;
+            }
+
+            QComboBox:disabled {
+                background: #374151;
+                color: #9ca3af;
+                border-color: #4b5563;
+            }
+
+            QComboBox QAbstractItemView {
+                background: #1f2937;
+                color: #f9fafb;
+                selection-background-color: #374151;
+                selection-color: #ffffff;
+                border: 1px solid #4b5563;
+            }
+
+            /* ---------------------------------------------
+               BUTTONS
+               --------------------------------------------- */
+
+            QPushButton {
+                color: #f9fafb;
+            }
+
+            QPushButton:disabled {
+                color: #9ca3af;
+            }
+
+            #refreshButton {
+                color: #ffffff;
+            }
+
+            #navigationButton {
+                color: #d1d5db;
+            }
+
+            #navigationButton:hover,
+            #navigationButton:pressed {
+                color: #ffffff;
+            }
+
+            /* ---------------------------------------------
+               TABLES
+               --------------------------------------------- */
+
+            QTableWidget {
+                background: #1f2937;
+                color: #f9fafb;
+                alternate-background-color: #1f2937;
+                border: 1px solid #4b5563;
+                gridline-color: #9ca3af;
+                selection-background-color: #4b5563;
+                selection-color: #ffffff;
+            }
+
+            QTableWidget::item {
+                color: #f9fafb;
+                background: #1f2937;
+            }
+
+            QTableWidget::item:selected {
+                color: #ffffff;
+                background: #4b5563;
+            }
+
+            QHeaderView::section {
+                background: #111827;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+                border-bottom: 1px solid #9ca3af;
+            }
+
+            /* Explicitly cover all current application tables.
+               This also preserves their existing object-specific
+               styling while guaranteeing dark-mode readability. */
+
+            #logbookTable,
+            #aircraftTable,
+            #airportsTable,
+            #performanceTable,
+            #fuelTable,
+            #fuelYearTable {
+                background: #1f2937;
+                color: #f9fafb;
+                gridline-color: #9ca3af;
+            }
+
+            #logbookTable::item,
+            #aircraftTable::item,
+            #airportsTable::item,
+            #performanceTable::item,
+            #fuelTable::item,
+            #fuelYearTable::item {
+                color: #f9fafb;
+                background: #1f2937;
+            }
+
+            #logbookTable QHeaderView::section,
+            #aircraftTable QHeaderView::section,
+            #airportsTable QHeaderView::section,
+            #performanceTable QHeaderView::section,
+            #fuelTable QHeaderView::section,
+            #fuelYearTable QHeaderView::section {
+                background: #111827;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+                border-bottom: 1px solid #9ca3af;
+            }
+
+            /* ---------------------------------------------
+               TABS
+               --------------------------------------------- */
+
+            QTabBar::tab {
+                color: #d1d5db;
+            }
+
+            QTabBar::tab:selected {
+                color: #ffffff;
+            }
+
+            #yearTabs QTabBar::tab {
+                background: #1f2937;
+                border-color: #374151;
+                color: #d1d5db;
+            }
+
+            #yearTabs QTabBar::tab:hover,
+            #yearTabs QTabBar::tab:selected {
+                background: #374151;
+                color: #ffffff;
+                border-color: #4b5563;
+            }
+
+            /* ---------------------------------------------
+               LOGBOOK DROP ZONE
+               --------------------------------------------- */
+
+            #logbookDropZone {
+                background: #1f2937;
+                border-color: #4b5563;
+            }
+
+            #logbookDropTitle,
+            #logbookDropIcon {
+                color: #f9fafb;
+            }
+
+            #logbookDropSubtitle {
+                color: #9ca3af;
+            }
+
+            /* ---------------------------------------------
+               PROGRESS BAR
+               --------------------------------------------- */
+
+            #progressBar {
+                background: #374151;
+            }
+
+            /* ---------------------------------------------
+               SCROLLBARS
+               --------------------------------------------- */
+
+            QScrollBar:vertical {
+                background: #1f2937;
+                width: 12px;
+                margin: 0;
+            }
+
+            QScrollBar::handle:vertical {
+                background: #6b7280;
+                min-height: 30px;
+                border-radius: 6px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background: #9ca3af;
+            }
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                background: #1f2937;
+                border: none;
+                height: 0;
+            }
+
+            QScrollBar:horizontal {
+                background: #1f2937;
+                height: 12px;
+                margin: 0;
+            }
+
+            QScrollBar::handle:horizontal {
+                background: #6b7280;
+                min-width: 30px;
+                border-radius: 6px;
+            }
+
+            QScrollBar::handle:horizontal:hover {
+                background: #9ca3af;
+            }
+
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {
+                background: #1f2937;
+                border: none;
+                width: 0;
+            }
+
+            /* ---------------------------------------------
+               TOOLTIP
+               --------------------------------------------- */
+
+            QToolTip {
+                background: #1f2937;
+                color: #f9fafb;
+                border: 1px solid #4b5563;
+            }
+
+            """
+        )
 
 
 # =========================================================
