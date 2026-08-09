@@ -3,6 +3,7 @@ import json
 from datetime import date, time
 from pathlib import Path
 
+from app_paths import CACHE_DIR
 from parser.easa_pdf import parse_logbook
 from parser.airports import AirportDatabase
 from parser.flight_analysis import (
@@ -64,21 +65,15 @@ def _parser_signature():
 
 
 def _cache_path():
-    """Return the local path for the parsed-logbook cache."""
+    """Return the macOS Application Support path for the parsed-logbook cache."""
 
-    cache_directory = (
-        Path(__file__).resolve().parent
-        / "data"
-        / "cache"
-    )
-
-    cache_directory.mkdir(
+    CACHE_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
     return (
-        cache_directory
+        CACHE_DIR
         / "logbook_parsed.json"
     )
 

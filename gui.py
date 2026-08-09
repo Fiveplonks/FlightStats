@@ -33,12 +33,16 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from app_paths import (
+    SETTINGS_FILE,
+    get_logbook_path,
+)
 from data_manager import FlightStatsData
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
 
 
-LOGBOOK = "logbook.pdf"
+LOGBOOK = get_logbook_path()
 
 
 def format_hours(minutes):
@@ -1371,9 +1375,14 @@ class SortableTableWidgetItem(QTableWidgetItem):
                     < other.sort_value
                 )
 
-        return super().__lt__(
-            other
-        )
+        # Do not call QTableWidgetItem.__lt__ here.
+        # PySide6 can route that call back through this Python
+        # override, causing infinite recursion.
+        return str(
+            self.text()
+        ).casefold() < str(
+            other.text()
+        ).casefold()
 
 
 # =========================================================
@@ -1885,21 +1894,14 @@ class AircraftPage(QWidget):
 # USER SETTINGS
 # =========================================================
 
-SETTINGS_PATH = (
-    Path(__file__).resolve().parent
-    / "data"
-    / "settings.json"
-)
-
-
 def load_home_bases():
     """Load saved home bases from the local settings file."""
 
     try:
-        if not SETTINGS_PATH.exists():
+        if not SETTINGS_FILE.exists():
             return []
 
-        with SETTINGS_PATH.open(
+        with SETTINGS_FILE.open(
             "r",
             encoding="utf-8",
         ) as handle:
@@ -1932,7 +1934,7 @@ def load_home_bases():
 def save_home_bases(home_bases):
     """Persist the user's home bases."""
 
-    SETTINGS_PATH.parent.mkdir(
+    SETTINGS_FILE.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -1940,8 +1942,8 @@ def save_home_bases(home_bases):
     settings = {}
 
     try:
-        if SETTINGS_PATH.exists():
-            with SETTINGS_PATH.open(
+        if SETTINGS_FILE.exists():
+            with SETTINGS_FILE.open(
                 "r",
                 encoding="utf-8",
             ) as handle:
@@ -1964,7 +1966,7 @@ def save_home_bases(home_bases):
         }
     )
 
-    with SETTINGS_PATH.open(
+    with SETTINGS_FILE.open(
         "w",
         encoding="utf-8",
     ) as handle:
@@ -2009,7 +2011,7 @@ class AirportsPage(QWidget):
         )
 
         subtitle = QLabel(
-            "Airport visits, turnaround times and route activity"
+            "Airport visits, turnaround times and layovers"
         )
 
         subtitle.setObjectName(
@@ -2161,7 +2163,7 @@ class AirportsPage(QWidget):
         )
 
         self.table.setColumnCount(
-            8
+            6
         )
 
         self.table.setHorizontalHeaderLabels(
@@ -2170,10 +2172,8 @@ class AirportsPage(QWidget):
                 "Country",
                 "Flights",
                 "Share",
-                "Flight Time",
                 "Avg. Turnaround Time",
                 "Avg. Layover Time",
-                "Distance",
             ]
         )
 
@@ -2430,8 +2430,6 @@ class AirportsPage(QWidget):
             ):
                 if airport_code not in stats:
                     stats[airport_code] = {
-                        "minutes": 0,
-                        "distance": 0.0,
                         "flights": 0,
                         "turnarounds": [],
                         "layovers": [],
@@ -2442,32 +2440,6 @@ class AirportsPage(QWidget):
                 ]
 
                 item["flights"] += 1
-
-                item["minutes"] += (
-                    flight.flight_minutes or 0
-                )
-
-                if index < len(
-                    self.data.flight_distances
-                ):
-                    result = (
-                        self.data.flight_distances[
-                            index
-                        ]
-                    )
-
-                    if isinstance(
-                        result,
-                        dict,
-                    ):
-                        distance = result.get(
-                            "distance_km"
-                        )
-
-                        if distance is not None:
-                            item[
-                                "distance"
-                            ] += distance
 
         # -------------------------------------------------
         # TURNAROUND TIMES
@@ -2601,22 +2573,12 @@ class AirportsPage(QWidget):
                     share,
                 ),
                 (
-                    format_hours(
-                        item["minutes"]
-                    ),
-                    item["minutes"],
-                ),
-                (
                     turnaround_text,
                     turnaround_sort_value,
                 ),
                 (
                     layover_text,
                     layover_sort_value,
-                ),
-                (
-                    f'{item["distance"]:,.1f} km',
-                    item["distance"],
                 ),
             ]
 
