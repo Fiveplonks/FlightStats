@@ -22,7 +22,7 @@ from parser.performance_analysis import (
 )
 
 
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 
 def _file_sha256(path):
@@ -192,6 +192,12 @@ def _flight_to_dict(flight):
         "aircraft": flight.aircraft,
         "registration": flight.registration,
         "flight_minutes": flight.flight_minutes,
+        "logged_flight_minutes": (
+            flight.logged_flight_minutes
+        ),
+        "logged_time_status": (
+            flight.logged_time_status
+        ),
     }
 
 
@@ -216,6 +222,13 @@ def _dict_to_flight(item):
         registration=item["registration"],
         flight_minutes=item.get(
             "flight_minutes"
+        ),
+        logged_flight_minutes=item.get(
+            "logged_flight_minutes"
+        ),
+        logged_time_status=item.get(
+            "logged_time_status",
+            "missing",
         ),
     )
 
@@ -294,6 +307,11 @@ def _load_cached_flights(
             )
         ]
 
+        previous_experience_minutes = cache.get(
+            "previous_experience_minutes",
+            0,
+        )
+
         if include_discrepancies:
             discrepancies = [
                 _deserialize_cache_value(item)
@@ -305,10 +323,14 @@ def _load_cached_flights(
 
             return (
                 flights,
+                previous_experience_minutes,
                 discrepancies,
             )
 
-        return flights
+        return (
+            flights,
+            previous_experience_minutes,
+        )
 
     except Exception:
         # A corrupt or incompatible cache must never prevent
@@ -320,6 +342,7 @@ def _save_cached_flights(
     logbook_path,
     flights,
     discrepancies=None,
+    previous_experience_minutes=0,
 ):
     """Save parsed flights and discrepancies to the local JSON cache."""
 
@@ -341,6 +364,9 @@ def _save_cached_flights(
                 discrepancies or []
             )
         ],
+        "previous_experience_minutes": (
+            previous_experience_minutes or 0
+        ),
     }
 
     temporary_path = cache_path.with_suffix(
@@ -400,6 +426,7 @@ class FlightStatsData:
 
         self.flights = []
         self.discrepancies = []
+        self.previous_experience_minutes = 0
         self.flight_distances = []
         self.fuel_results = []
         self.fuel_summary = {}
@@ -408,6 +435,7 @@ class FlightStatsData:
         self.airports = set()
 
         self.total_flight_minutes = 0
+        self.total_logged_flight_minutes = 0
         self.total_distance_km = 0.0
 
         self.calculated_distance_flights = 0
@@ -481,6 +509,7 @@ class FlightStatsData:
         else:
             (
                 self.flights,
+                self.previous_experience_minutes,
                 self.discrepancies,
             ) = cached_data
 
@@ -491,11 +520,22 @@ class FlightStatsData:
             )
 
             self.discrepancies = []
+            self.previous_experience_minutes = 0
+
+            def report_previous_experience(
+                minutes,
+            ):
+                self.previous_experience_minutes = (
+                    minutes
+                )
 
             self.flights = parse_flight_file(
                 self.logbook_path,
                 discrepancy_callback=(
                     self.report_discrepancy
+                ),
+                previous_experience_callback=(
+                    report_previous_experience
                 ),
             )
 
@@ -503,6 +543,7 @@ class FlightStatsData:
                 self.logbook_path,
                 self.flights,
                 self.discrepancies,
+                self.previous_experience_minutes,
             )
 
             self.report_progress(
@@ -516,8 +557,21 @@ class FlightStatsData:
             )
 
         self.total_flight_minutes = sum(
-            flight.flight_minutes
+            flight.flight_minutes or 0
             for flight in self.flights
+        )
+
+        # Source logbook time is kept separate from the
+        # authoritative timestamp-derived flight time.
+        #
+        # Only entries classified as valid are included.
+        # Suspicious and missing values remain attached to
+        # their Flight objects but are excluded from this
+        # aggregate.
+        self.total_logged_flight_minutes = sum(
+            flight.logged_flight_minutes or 0
+            for flight in self.flights
+            if flight.logged_time_status == "valid"
         )
 
         self.report_progress(

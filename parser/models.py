@@ -13,3 +13,5 @@ class Flight:
     aircraft: str
     registration: str
     flight_minutes: Optional[int]
+    logged_flight_minutes: Optional[int] = None
+    logged_time_status: str = "missing"

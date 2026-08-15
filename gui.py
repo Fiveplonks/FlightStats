@@ -704,7 +704,19 @@ class DashboardPage(QWidget):
         )
 
         self.time_card = MetricCard(
-            "Flight time"
+            "Calculated flight time"
+        )
+
+        self.previous_experience_card = MetricCard(
+            "Previous experience"
+        )
+
+        self.validated_logbook_card = MetricCard(
+            "Validated logbook time"
+        )
+
+        self.total_experience_card = MetricCard(
+            "Total experience"
         )
 
         self.distance_card = MetricCard(
@@ -736,26 +748,44 @@ class DashboardPage(QWidget):
         )
 
         cards_layout.addWidget(
-            self.distance_card,
+            self.previous_experience_card,
             0,
             2,
         )
 
         cards_layout.addWidget(
-            self.jet_fuel_card,
+            self.total_experience_card,
             1,
             0,
         )
 
         cards_layout.addWidget(
-            self.piston_fuel_card,
+            self.validated_logbook_card,
             1,
             1,
         )
 
         cards_layout.addWidget(
-            self.airports_card,
+            self.distance_card,
             1,
+            2,
+        )
+
+        cards_layout.addWidget(
+            self.jet_fuel_card,
+            2,
+            0,
+        )
+
+        cards_layout.addWidget(
+            self.piston_fuel_card,
+            2,
+            1,
+        )
+
+        cards_layout.addWidget(
+            self.airports_card,
+            2,
             2,
         )
 
@@ -899,6 +929,9 @@ class DashboardPage(QWidget):
         for widget in (
             self.flights_card,
             self.time_card,
+            self.previous_experience_card,
+            self.validated_logbook_card,
+            self.total_experience_card,
             self.distance_card,
             self.jet_fuel_card,
             self.piston_fuel_card,
@@ -917,6 +950,8 @@ class DashboardPage(QWidget):
         for widget in (
             self.flights_card,
             self.time_card,
+            self.previous_experience_card,
+            self.total_experience_card,
             self.distance_card,
             self.jet_fuel_card,
             self.piston_fuel_card,
@@ -939,6 +974,8 @@ class DashboardPage(QWidget):
         for widget in (
             self.flights_card,
             self.time_card,
+            self.previous_experience_card,
+            self.total_experience_card,
             self.distance_card,
             self.jet_fuel_card,
             self.piston_fuel_card,
@@ -1031,6 +1068,12 @@ class DashboardPage(QWidget):
             for flight in flights
         )
 
+        validated_logged_minutes = sum(
+            flight.logged_flight_minutes or 0
+            for flight in flights
+            if flight.logged_time_status == "valid"
+        )
+
         total_distance = 0.0
         jet_fuel = 0.0
         piston_fuel = 0.0
@@ -1076,6 +1119,31 @@ class DashboardPage(QWidget):
         self.time_card.set_value(
             format_hours(total_minutes)
         )
+
+        previous_experience = (
+            self._data.previous_experience_minutes
+            or 0
+        )
+
+        self.previous_experience_card.set_value(
+            format_hours(
+                previous_experience
+            )
+        )
+
+        self.validated_logbook_card.set_value(
+            format_hours(
+                validated_logged_minutes
+            )
+        )
+
+        self.total_experience_card.set_value(
+            format_hours(
+                total_minutes
+                + previous_experience
+            )
+        )
+
         self.distance_card.set_value(
             f"{total_distance:,.1f} km"
         )

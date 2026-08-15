@@ -30,17 +30,75 @@ FLIGHT_ROW_PATTERN = re.compile(
 )
 
 
-# The TOTAL TIME OF FLIGHT value appears after the registration.
+# Standard EASA AMC1 FCL.050 flight-row format.
+#
+# The single-pilot SE/ME columns may be empty. Therefore the
+# extracted row can contain either two or three HH MM pairs:
+#
+#   2 26 2 26
+#
+# or:
+#
+#   1 10 2 05 3 15
+#
+# The final pair is TOTAL TIME OF FLIGHT.
+STANDARD_EASA_FLIGHT_ROW_PATTERN = re.compile(
+    r"""
+    ^
+    (?P<date>\d{2}-\d{2}-\d{4})
+    \s+
+    (?P<departure>[A-Z0-9]{3,4})
+    \s+
+    (?P<departure_time>\d{2}:\d{2})
+    \s+
+    (?P<arrival>[A-Z0-9]{3,4})
+    \s+
+    (?P<arrival_time>\d{2}:\d{2})
+    \s+
+    (?P<aircraft>\S+)
+    \s+
+    (?P<registration>\S+)
+    \s+
+    (?P<time_pairs>
+        \d{1,2}\s+[0-5]\d
+        (?:\s+\d{1,2}\s+[0-5]\d){1,2}
+    )
+    (?P<tail>.*)
+    $
+    """,
+    re.VERBOSE,
+)
+
+
+# Logged total flight time in the Belgian CAA format.
+#
 # Examples:
 #
 #   1 26 1 26 SELF
 #   2 35 2 35 SELF
 #   0 48 48 SELF 1
 #
-# We use the final plausible HH MM pair as the logged total flight time.
+# The final plausible HH MM pair is the recorded total.
 LOGGED_TIME_PAIR_PATTERN = re.compile(
     r"(?<!\d)(\d{1,2})\s+([0-5]\d)(?!\d)"
 )
+
+
+# Carried-forward flight time from previous logbook pages.
+#
+# Example:
+#
+#   TOTAL FROM 3.839:59
+#   PREVIOUS PAGES
+#
+# This is metadata only. It is read once from the first
+# applicable flight-entry page and is never added to the
+# calculated flight-time pipeline.
+PREVIOUS_EXPERIENCE_PATTERN = re.compile(
+    r"TOTAL\s+FROM\s+([0-9.]+):([0-5]\d)",
+    re.IGNORECASE,
+)
+
 
 
 def parse_time(value):
@@ -121,14 +179,51 @@ def parse_flight_row(line):
         (None, None)
     """
 
-    match = FLIGHT_ROW_PATTERN.match(
-        line.strip()
+    stripped_line = line.strip()
+
+    # -----------------------------------------------------
+    # TRY STANDARD EASA FCL.050 FORMAT FIRST
+    # -----------------------------------------------------
+    #
+    # In the standard EASA layout the Total Time of Flight
+    # is an explicit column. PDF extraction represents the
+    # time columns as HH MM pairs.
+    #
+    # The final pair in time_pairs is therefore the logged
+    # Total Time of Flight.
+    #
+    # Example:
+    #
+    #   18-01-2017 EHAM 19:57 LIRF 22:23
+    #   737-700 PH-BGT 2 26 2 26 1
+    #
+    #                           ^^^^^
+    #                           total
+    #
+    standard_match = (
+        STANDARD_EASA_FLIGHT_ROW_PATTERN.match(
+            stripped_line
+        )
     )
 
-    if not match:
-        return None, None
+    if standard_match:
+        data = standard_match.groupdict()
+        source_format = "standard_easa"
 
-    data = match.groupdict()
+    else:
+        # -------------------------------------------------
+        # FALL BACK TO BELGIAN CAA FORMAT
+        # -------------------------------------------------
+
+        match = FLIGHT_ROW_PATTERN.match(
+            stripped_line
+        )
+
+        if not match:
+            return None, None
+
+        data = match.groupdict()
+        source_format = "belgian_caa"
 
     flight_date = datetime.strptime(
         data["date"],
@@ -155,6 +250,55 @@ def parse_flight_row(line):
         arrival_time,
     )
 
+    if source_format == "standard_easa":
+        time_pairs = list(
+            re.finditer(
+                r"(?<!\d)(\d{1,2})\s+([0-5]\d)(?!\d)",
+                data["time_pairs"],
+            )
+        )
+
+        if time_pairs:
+            hours, minutes = time_pairs[-1].groups()
+
+            logged_minutes = (
+                int(hours) * 60
+                + int(minutes)
+            )
+        else:
+            logged_minutes = None
+
+    else:
+        logged_minutes = parse_logged_flight_minutes(
+            data["rest"]
+        )
+
+    # -----------------------------------------------------
+    # VALIDATE SOURCE LOGBOOK TIME
+    # -----------------------------------------------------
+    #
+    # The logbook's Total Time of Flight can legitimately
+    # differ substantially from the timestamp-derived
+    # duration, particularly on relief flights.
+    #
+    # Therefore we do not require the two values to match.
+    #
+    # Extremely small logged values are treated as
+    # suspicious. The original source value is preserved.
+    #
+
+    if logged_minutes is None:
+        logged_time_status = "missing"
+
+    elif (
+        flight_minutes > 0
+        and logged_minutes / flight_minutes < 0.30
+    ):
+        logged_time_status = "suspicious"
+
+    else:
+        logged_time_status = "valid"
+
     flight = Flight(
         date=flight_date,
         departure=data["departure"],
@@ -164,10 +308,8 @@ def parse_flight_row(line):
         aircraft=data["aircraft"],
         registration=data["registration"],
         flight_minutes=flight_minutes,
-    )
-
-    logged_minutes = parse_logged_flight_minutes(
-        data["rest"]
+        logged_flight_minutes=logged_minutes,
+        logged_time_status=logged_time_status,
     )
 
     discrepancy = None
@@ -189,6 +331,7 @@ def parse_flight_row(line):
                 "calculated_minutes": flight_minutes,
                 "logged_minutes": logged_minutes,
                 "difference_minutes": difference,
+                "logged_time_status": logged_time_status,
             }
 
     return flight, discrepancy
@@ -198,6 +341,7 @@ def parse_logbook(
     pdf_path,
     progress_callback=None,
     discrepancy_callback=None,
+    previous_experience_callback=None,
 ):
     """
     Parse all completed/current flight rows from a logbook PDF.
@@ -206,9 +350,15 @@ def parse_logbook(
 
     discrepancy_callback is called for every flight where the calculated
     duration differs from the duration recorded in the logbook.
+
+    previous_experience_callback is called once with the carried-forward
+    flight time from the first flight-entry page. This value is metadata
+    and is not added to the parsed flight records.
     """
 
     flights = []
+
+    previous_experience_minutes = None
 
     with pdfplumber.open(pdf_path) as pdf:
 
@@ -243,6 +393,53 @@ def parse_logbook(
             text = page.extract_text()
 
             if text:
+
+                # The right-hand pages contain the flight-entry
+                # table. In this logbook format these are odd-numbered
+                # PDF pages.
+                #
+                # Only the FIRST such page may provide the
+                # "TOTAL FROM PREVIOUS PAGES" value. Later pages
+                # contain cumulative carry-forward totals and must
+                # be ignored.
+
+                is_first_flight_entry_page = (
+                    page_number % 2 == 1
+                    and previous_experience_minutes is None
+                )
+
+                if is_first_flight_entry_page:
+                    previous_match = (
+                        PREVIOUS_EXPERIENCE_PATTERN.search(
+                            text
+                        )
+                    )
+
+                    if previous_match is not None:
+                        hours_text = (
+                            previous_match.group(1)
+                            .replace(
+                                ".",
+                                "",
+                            )
+                        )
+
+                        minutes = int(
+                            previous_match.group(2)
+                        )
+
+                        previous_experience_minutes = (
+                            int(hours_text) * 60
+                            + minutes
+                        )
+
+                        if (
+                            previous_experience_callback
+                            is not None
+                        ):
+                            previous_experience_callback(
+                                previous_experience_minutes
+                            )
 
                 for line in text.splitlines():
 
