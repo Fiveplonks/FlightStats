@@ -8,13 +8,21 @@ from parser.easa_pdf import parse_logbook
 SUPPORTED_EXTENSIONS = {".pdf", ".csv"}
 
 
-def parse_flight_file(path):
+def parse_flight_file(
+    path,
+    progress_callback=None,
+    discrepancy_callback=None,
+):
     """Parse a supported FlightStats input file."""
     path = Path(path)
     suffix = path.suffix.lower()
 
     if suffix == ".pdf":
-        return parse_logbook(path)
+        return parse_logbook(
+            path,
+            progress_callback=progress_callback,
+            discrepancy_callback=discrepancy_callback,
+        )
 
     if suffix == ".csv":
         return parse_csv(path)

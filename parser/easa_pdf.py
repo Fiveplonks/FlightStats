@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pdfplumber
 
@@ -30,6 +30,19 @@ FLIGHT_ROW_PATTERN = re.compile(
 )
 
 
+# The TOTAL TIME OF FLIGHT value appears after the registration.
+# Examples:
+#
+#   1 26 1 26 SELF
+#   2 35 2 35 SELF
+#   0 48 48 SELF 1
+#
+# We use the final plausible HH MM pair as the logged total flight time.
+LOGGED_TIME_PAIR_PATTERN = re.compile(
+    r"(?<!\d)(\d{1,2})\s+([0-5]\d)(?!\d)"
+)
+
+
 def parse_time(value):
     """Convert HH:MM text into a time object."""
 
@@ -44,20 +57,21 @@ def calculate_flight_minutes(
     arrival_time,
 ):
     """
-    Calculate flight duration from UTC departure
-    and arrival times.
+    Calculate flight duration from the departure and arrival clock times.
 
-    If arrival is earlier than departure, assume
-    the flight arrived the following UTC day.
+    FlightStats deliberately keeps this as the authoritative calculated
+    duration. The logbook's recorded duration is validation data only.
     """
 
+    reference_date = date.today()
+
     departure = datetime.combine(
-        datetime.today(),
+        reference_date,
         departure_time,
     )
 
     arrival = datetime.combine(
-        datetime.today(),
+        reference_date,
         arrival_time,
     )
 
@@ -71,15 +85,48 @@ def calculate_flight_minutes(
     )
 
 
+def parse_logged_flight_minutes(rest):
+    """
+    Extract the logbook's recorded TOTAL TIME OF FLIGHT.
+
+    This value is used only for discrepancy checking.
+    """
+
+    matches = list(
+        LOGGED_TIME_PAIR_PATTERN.finditer(
+            rest
+        )
+    )
+
+    if not matches:
+        return None
+
+    hours, minutes = matches[-1].groups()
+
+    return (
+        int(hours) * 60
+        + int(minutes)
+    )
+
+
 def parse_flight_row(line):
-    """Parse one flight row from the PDF."""
+    """
+    Parse one flight row.
+
+    Returns:
+        (Flight, discrepancy)
+
+    or:
+
+        (None, None)
+    """
 
     match = FLIGHT_ROW_PATTERN.match(
         line.strip()
     )
 
     if not match:
-        return None
+        return None, None
 
     data = match.groupdict()
 
@@ -87,6 +134,11 @@ def parse_flight_row(line):
         data["date"],
         "%d-%m-%Y",
     ).date()
+
+    # Future entries in the PDF are planned/draft flights.
+    # They are not completed logbook entries.
+    if flight_date > date.today():
+        return None, None
 
     departure_time = parse_time(
         data["departure_time"]
@@ -96,12 +148,14 @@ def parse_flight_row(line):
         data["arrival_time"]
     )
 
+    # IMPORTANT:
+    # Timestamp calculation remains authoritative.
     flight_minutes = calculate_flight_minutes(
         departure_time,
         arrival_time,
     )
 
-    return Flight(
+    flight = Flight(
         date=flight_date,
         departure=data["departure"],
         departure_time=departure_time,
@@ -112,22 +166,46 @@ def parse_flight_row(line):
         flight_minutes=flight_minutes,
     )
 
+    logged_minutes = parse_logged_flight_minutes(
+        data["rest"]
+    )
+
+    discrepancy = None
+
+    if logged_minutes is not None:
+        difference = (
+            flight_minutes
+            - logged_minutes
+        )
+
+        if difference != 0:
+            discrepancy = {
+                "type": "flight_time_discrepancy",
+                "date": flight_date,
+                "departure": data["departure"],
+                "arrival": data["arrival"],
+                "departure_time": departure_time,
+                "arrival_time": arrival_time,
+                "calculated_minutes": flight_minutes,
+                "logged_minutes": logged_minutes,
+                "difference_minutes": difference,
+            }
+
+    return flight, discrepancy
+
 
 def parse_logbook(
     pdf_path,
     progress_callback=None,
+    discrepancy_callback=None,
 ):
     """
-    Parse all flight rows from a logbook PDF.
+    Parse all completed/current flight rows from a logbook PDF.
 
-    progress_callback is optional.
+    The calculated timestamp duration remains authoritative.
 
-    When supplied, it is called as:
-
-        progress_callback(percent, message)
-
-    Parsing progress runs from 0 to 100 percent
-    across the pages of the PDF.
+    discrepancy_callback is called for every flight where the calculated
+    duration differs from the duration recorded in the logbook.
     """
 
     flights = []
@@ -148,12 +226,7 @@ def parse_logbook(
 
             return flights
 
-        # -------------------------------------------------
-        # INITIAL PROGRESS
-        # -------------------------------------------------
-
         if progress_callback is not None:
-
             progress_callback(
                 0,
                 (
@@ -162,10 +235,6 @@ def parse_logbook(
                 ),
             )
 
-        # -------------------------------------------------
-        # PROCESS PAGES
-        # -------------------------------------------------
-
         for page_number, page in enumerate(
             pdf.pages,
             start=1,
@@ -173,27 +242,28 @@ def parse_logbook(
 
             text = page.extract_text()
 
-            page_flights = 0
-
             if text:
 
                 for line in text.splitlines():
 
-                    flight = parse_flight_row(
-                        line
+                    flight, discrepancy = (
+                        parse_flight_row(line)
                     )
 
-                    if flight is not None:
+                    if flight is None:
+                        continue
 
-                        flights.append(
-                            flight
+                    flights.append(
+                        flight
+                    )
+
+                    if (
+                        discrepancy is not None
+                        and discrepancy_callback is not None
+                    ):
+                        discrepancy_callback(
+                            discrepancy
                         )
-
-                        page_flights += 1
-
-            # ---------------------------------------------
-            # REPORT PAGE PROGRESS
-            # ---------------------------------------------
 
             if progress_callback is not None:
 
@@ -212,12 +282,7 @@ def parse_logbook(
                     ),
                 )
 
-    # -----------------------------------------------------
-    # COMPLETE
-    # -----------------------------------------------------
-
     if progress_callback is not None:
-
         progress_callback(
             100,
             (

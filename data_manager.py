@@ -22,7 +22,7 @@ from parser.performance_analysis import (
 )
 
 
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 def _file_sha256(path):
@@ -117,6 +117,65 @@ def _string_to_time(value):
     )
 
 
+def _serialize_cache_value(value):
+    """Serialize values used in discrepancy records."""
+
+    if isinstance(value, date):
+        return {
+            "__type__": "date",
+            "value": value.isoformat(),
+        }
+
+    if isinstance(value, time):
+        return {
+            "__type__": "time",
+            "value": value.isoformat(),
+        }
+
+    if isinstance(value, dict):
+        return {
+            key: _serialize_cache_value(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            _serialize_cache_value(item)
+            for item in value
+        ]
+
+    return value
+
+
+def _deserialize_cache_value(value):
+    """Restore values used in discrepancy records."""
+
+    if isinstance(value, dict):
+
+        if value.get("__type__") == "date":
+            return date.fromisoformat(
+                value["value"]
+            )
+
+        if value.get("__type__") == "time":
+            return time.fromisoformat(
+                value["value"]
+            )
+
+        return {
+            key: _deserialize_cache_value(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            _deserialize_cache_value(item)
+            for item in value
+        ]
+
+    return value
+
+
 def _flight_to_dict(flight):
     """Serialize one Flight dataclass."""
 
@@ -163,15 +222,38 @@ def _dict_to_flight(item):
 
 def _load_cached_flights(
     logbook_path,
+    include_discrepancies=False,
+    allow_missing_logbook=False,
 ):
     """
-    Load parsed flights from cache when the input file and parser
-    have not changed since the cache was created.
+    Load parsed flights from cache.
+
+    When the original logbook exists, the cache is validated against
+    its SHA-256 digest and the parser signature.
+
+    When allow_missing_logbook is True and the original logbook is
+    unavailable, the cache can still be used as long as its cache
+    version and parser signature are valid.
     """
 
     cache_path = _cache_path()
 
     if not cache_path.exists():
+        return None
+
+    logbook_path = Path(
+        logbook_path
+    ).expanduser()
+
+    logbook_exists = (
+        logbook_path.exists()
+        and logbook_path.is_file()
+    )
+
+    if (
+        not logbook_exists
+        and not allow_missing_logbook
+    ):
         return None
 
     try:
@@ -187,11 +269,16 @@ def _load_cached_flights(
         ) != CACHE_VERSION:
             return None
 
-        if cache.get(
-            "logbook_sha256"
-        ) != _file_sha256(
-            logbook_path
-        ):
+        if logbook_exists:
+
+            if cache.get(
+                "logbook_sha256"
+            ) != _file_sha256(
+                logbook_path
+            ):
+                return None
+
+        elif not allow_missing_logbook:
             return None
 
         if cache.get(
@@ -199,13 +286,29 @@ def _load_cached_flights(
         ) != _parser_signature():
             return None
 
-        return [
+        flights = [
             _dict_to_flight(item)
             for item in cache.get(
                 "flights",
                 [],
             )
         ]
+
+        if include_discrepancies:
+            discrepancies = [
+                _deserialize_cache_value(item)
+                for item in cache.get(
+                    "discrepancies",
+                    [],
+                )
+            ]
+
+            return (
+                flights,
+                discrepancies,
+            )
+
+        return flights
 
     except Exception:
         # A corrupt or incompatible cache must never prevent
@@ -216,8 +319,9 @@ def _load_cached_flights(
 def _save_cached_flights(
     logbook_path,
     flights,
+    discrepancies=None,
 ):
-    """Save parsed flights to the local JSON cache."""
+    """Save parsed flights and discrepancies to the local JSON cache."""
 
     cache_path = _cache_path()
 
@@ -230,6 +334,12 @@ def _save_cached_flights(
         "flights": [
             _flight_to_dict(flight)
             for flight in flights
+        ],
+        "discrepancies": [
+            _serialize_cache_value(item)
+            for item in (
+                discrepancies or []
+            )
         ],
     }
 
@@ -278,13 +388,18 @@ class FlightStatsData:
         self,
         logbook_path,
         progress_callback=None,
+        discrepancy_callback=None,
     ):
         self.logbook_path = logbook_path
         self.progress_callback = (
             progress_callback
         )
+        self.discrepancy_callback = (
+            discrepancy_callback
+        )
 
         self.flights = []
+        self.discrepancies = []
         self.flight_distances = []
         self.fuel_results = []
         self.fuel_summary = {}
@@ -302,6 +417,21 @@ class FlightStatsData:
         self.fuel_database = None
 
         self.load()
+
+    def report_discrepancy(
+        self,
+        discrepancy,
+    ):
+        """Store and optionally forward a parser discrepancy."""
+
+        self.discrepancies.append(
+            discrepancy
+        )
+
+        if self.discrepancy_callback is not None:
+            self.discrepancy_callback(
+                discrepancy
+            )
 
     def report_progress(
         self,
@@ -339,9 +469,20 @@ class FlightStatsData:
             "Checking logbook cache...",
         )
 
-        self.flights = _load_cached_flights(
-            self.logbook_path
+        cached_data = _load_cached_flights(
+            self.logbook_path,
+            include_discrepancies=True,
+            allow_missing_logbook=True,
         )
+
+        if cached_data is None:
+            self.flights = None
+            self.discrepancies = []
+        else:
+            (
+                self.flights,
+                self.discrepancies,
+            ) = cached_data
 
         if self.flights is None:
             self.report_progress(
@@ -349,13 +490,19 @@ class FlightStatsData:
                 "Parsing logbook...",
             )
 
+            self.discrepancies = []
+
             self.flights = parse_flight_file(
-                self.logbook_path
+                self.logbook_path,
+                discrepancy_callback=(
+                    self.report_discrepancy
+                ),
             )
 
             _save_cached_flights(
                 self.logbook_path,
                 self.flights,
+                self.discrepancies,
             )
 
             self.report_progress(
