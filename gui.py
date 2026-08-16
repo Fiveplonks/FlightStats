@@ -53,6 +53,7 @@ from app_paths import (
     get_logbook_path,
 )
 from gui_data_loader import DataLoaderWorker
+from gui_discrepancy_dialog import show_discrepancies
 from gui_style import apply_style
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
@@ -6967,158 +6968,16 @@ class MainWindow(QMainWindow):
                 self.data
             )
 
-        self.show_discrepancies(
+        show_discrepancies(
+            self,
             getattr(
                 self.data,
                 "discrepancies",
                 [],
-            )
+            ),
+            format_hours,
         )
 
-    def show_discrepancies(
-        self,
-        discrepancies,
-    ):
-        """Show flight-time discrepancies in a resizable dialog."""
-
-        if not discrepancies:
-            return
-
-        dialog = QDialog(self)
-
-        dialog.setWindowTitle(
-            "Flight Time Discrepancies"
-        )
-
-        dialog.setMinimumSize(
-            600,
-            400,
-        )
-
-        dialog.resize(
-            900,
-            650,
-        )
-
-        layout = QVBoxLayout(dialog)
-
-        title = QLabel(
-            f"{len(discrepancies)} flight-time discrepancy"
-            + ("" if len(discrepancies) == 1 else "ies")
-            + " found."
-        )
-
-        title.setWordWrap(True)
-
-        layout.addWidget(title)
-
-        text_edit = QPlainTextEdit()
-
-        text_edit.setReadOnly(True)
-
-        text_edit.setLineWrapMode(
-            QPlainTextEdit.NoWrap
-        )
-
-        lines = []
-
-        for index, discrepancy in enumerate(
-            discrepancies,
-            start=1,
-        ):
-            flight_date = discrepancy.get(
-                "date",
-                "Unknown date",
-            )
-
-            departure = discrepancy.get(
-                "departure",
-                "?",
-            )
-
-            arrival = discrepancy.get(
-                "arrival",
-                "?",
-            )
-
-            departure_time = discrepancy.get(
-                "departure_time",
-                "?",
-            )
-
-            arrival_time = discrepancy.get(
-                "arrival_time",
-                "?",
-            )
-
-            calculated = discrepancy.get(
-                "calculated_minutes"
-            )
-
-            logged = discrepancy.get(
-                "logged_minutes"
-            )
-
-            difference = discrepancy.get(
-                "difference_minutes"
-            )
-
-            lines.append(
-                f"Discrepancy {index}  |  {flight_date}"
-            )
-
-            lines.append(
-                f"{departure} → {arrival}"
-            )
-
-            lines.append(
-                f"Departure: {departure_time}    "
-                f"Arrival: {arrival_time}"
-            )
-
-            lines.append("")
-
-            lines.append(
-                "Calculated flight time: "
-                f"{format_hours(calculated)}"
-            )
-
-            lines.append(
-                "Logged flight time:     "
-                f"{format_hours(logged)}"
-            )
-
-            lines.append(
-                "Difference:             "
-                f"{format_hours(difference)}"
-            )
-
-            lines.append("")
-
-            lines.append("-" * 70)
-
-            lines.append("")
-
-        text_edit.setPlainText(
-            "\n".join(lines)
-        )
-
-        layout.addWidget(
-            text_edit,
-            1,
-        )
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok
-        )
-
-        buttons.accepted.connect(
-            dialog.accept
-        )
-
-        layout.addWidget(buttons)
-
-        dialog.exec()
 
     def loading_error(
         self,
