@@ -146,12 +146,20 @@ def save_logbook_path(path):
 
 
 def format_hours(minutes):
-    """Convert minutes into H:MM format."""
+    """Convert minutes into H:MM format, preserving negative values."""
 
-    hours = minutes // 60
-    remaining_minutes = minutes % 60
+    if minutes is None:
+        return "—"
 
-    return f"{hours}:{remaining_minutes:02d}"
+    sign = "-" if minutes < 0 else ""
+    minutes = abs(int(minutes))
+
+    hours, remaining_minutes = divmod(
+        minutes,
+        60,
+    )
+
+    return f"{sign}{hours}:{remaining_minutes:02d}"
 
 
 def display_fuel_unit(unit):
@@ -7054,21 +7062,6 @@ class MainWindow(QMainWindow):
                 "difference_minutes"
             )
 
-            def format_duration(minutes):
-                if minutes is None:
-                    return "—"
-
-                sign = "-" if minutes < 0 else ""
-
-                minutes = abs(int(minutes))
-
-                hours, remaining = divmod(
-                    minutes,
-                    60,
-                )
-
-                return f"{sign}{hours}:{remaining:02d}"
-
             lines.append(
                 f"Discrepancy {index}  |  {flight_date}"
             )
@@ -7086,17 +7079,17 @@ class MainWindow(QMainWindow):
 
             lines.append(
                 "Calculated flight time: "
-                f"{format_duration(calculated)}"
+                f"{format_hours(calculated)}"
             )
 
             lines.append(
                 "Logged flight time:     "
-                f"{format_duration(logged)}"
+                f"{format_hours(logged)}"
             )
 
             lines.append(
                 "Difference:             "
-                f"{format_duration(difference)}"
+                f"{format_hours(difference)}"
             )
 
             lines.append("")
