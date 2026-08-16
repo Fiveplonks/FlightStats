@@ -279,23 +279,37 @@ def parse_flight_row(line):
         data = match.groupdict()
         source_format = "belgian_caa"
 
-    flight_date = datetime.strptime(
-        data["date"],
-        "%d-%m-%Y",
-    ).date()
+    # -----------------------------------------------------
+    # VALIDATE DATE / TIME FIELDS
+    # -----------------------------------------------------
+    #
+    # PDF extraction can occasionally produce a row that
+    # matches the structural pattern but contains an invalid
+    # date or time. Such a row must not abort the complete
+    # logbook import.
+    #
+
+    try:
+        flight_date = datetime.strptime(
+            data["date"],
+            "%d-%m-%Y",
+        ).date()
+
+        departure_time = parse_time(
+            data["departure_time"]
+        )
+
+        arrival_time = parse_time(
+            data["arrival_time"]
+        )
+
+    except ValueError:
+        return None, None
 
     # Future entries in the PDF are planned/draft flights.
     # They are not completed logbook entries.
     if flight_date > date.today():
         return None, None
-
-    departure_time = parse_time(
-        data["departure_time"]
-    )
-
-    arrival_time = parse_time(
-        data["arrival_time"]
-    )
 
     # IMPORTANT:
     # Timestamp calculation remains authoritative.
