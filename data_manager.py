@@ -419,6 +419,7 @@ class FlightStatsData:
         logbook_path,
         progress_callback=None,
         discrepancy_callback=None,
+        flight_callback=None,
     ):
         self.logbook_path = logbook_path
         self.progress_callback = (
@@ -426,6 +427,9 @@ class FlightStatsData:
         )
         self.discrepancy_callback = (
             discrepancy_callback
+        )
+        self.flight_callback = (
+            flight_callback
         )
 
         self.flights = []
@@ -541,6 +545,7 @@ class FlightStatsData:
                 previous_experience_callback=(
                     report_previous_experience
                 ),
+                flight_callback=self.flight_callback,
             )
 
             _save_cached_flights(

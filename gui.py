@@ -1,6 +1,7 @@
 import sys
 import json
 import math
+import random
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
@@ -223,7 +224,13 @@ class DataLoaderWorker(QObject):
 
 
 class MetricCard(QFrame):
-    """Reusable dashboard metric card."""
+    """Reusable dashboard metric card with split-flap-style values."""
+
+    FLAP_CHARACTERS = (
+        " 0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        ":.,-/"
+    )
 
     def __init__(
         self,
@@ -255,28 +262,236 @@ class MetricCard(QFrame):
             "cardLabel"
         )
 
-        self.value_label = QLabel(
-            value
-        )
-
-        self.value_label.setObjectName(
-            "cardValue"
-        )
-
         layout.addWidget(
             self.title_label
         )
 
-        layout.addWidget(
-            self.value_label
+        # -------------------------------------------------
+        # SPLIT-FLAP VALUE DISPLAY
+        # -------------------------------------------------
+
+        self.flap_container = QFrame()
+
+        self.flap_container.setObjectName(
+            "flapBoard"
         )
 
-    def set_value(self, value):
-        """Update displayed metric."""
+        self.flap_container.setStyleSheet(
+            """
+            QFrame#flapBoard {
+                background-color: #59636f;
+                border-radius: 5px;
+            }
+            """
+        )
 
-        self.value_label.setText(
+        # Keep the board only as wide as its flap contents.
+        # Short values therefore get a short board instead
+        # of stretching across the entire metric card.
+        self.flap_container.setSizePolicy(
+            QSizePolicy.Maximum,
+            QSizePolicy.Preferred,
+        )
+
+        self.flap_layout = QHBoxLayout(
+            self.flap_container
+        )
+
+        self.flap_layout.setContentsMargins(
+            5,
+            5,
+            5,
+            5,
+        )
+
+        self.flap_layout.setSpacing(2)
+
+        self.flap_layout.setAlignment(
+            Qt.AlignLeft | Qt.AlignVCenter
+        )
+
+        layout.addWidget(
+            self.flap_container,
+            0,
+            Qt.AlignLeft,
+        )
+
+        self.flap_labels = []
+
+        self._flap_timer = QTimer(
+            self
+        )
+
+        self._flap_timer.setInterval(
+            60
+        )
+
+        self._flap_timer.timeout.connect(
+            self._advance_flap
+        )
+
+        self._flap_target = str(
             value
         )
+
+        self._flap_tick = 0
+        self._flap_settle_ticks = []
+
+        self._create_flaps(
+            self._flap_target
+        )
+
+    def _create_flaps(self, value):
+        """Create one physical-looking flap for every character."""
+
+        while self.flap_layout.count():
+            item = self.flap_layout.takeAt(0)
+
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
+        self.flap_labels = []
+
+        for character in str(value):
+            label = QLabel(
+                character
+            )
+
+            label.setAlignment(
+                Qt.AlignCenter
+            )
+
+            label.setFixedSize(
+                22,
+                34,
+            )
+
+            label.setStyleSheet(
+                """
+                QLabel {
+                    color: #f5f5f5;
+                    background: #090909;
+                    border: 1px solid #292929;
+                    border-radius: 2px;
+                    font-family: "Courier New";
+                    font-size: 18px;
+                    font-weight: 700;
+                    padding: 0px;
+                }
+                """
+            )
+
+            self.flap_layout.addWidget(
+                label
+            )
+
+            self.flap_labels.append(
+                label
+            )
+
+    def set_value(
+        self,
+        value,
+        animate=True,
+    ):
+        """Update the displayed metric."""
+
+        value = str(
+            value
+        )
+
+        if not animate:
+            self._flap_timer.stop()
+            self._flap_target = value
+            self._create_flaps(value)
+            return
+
+        if value == self._flap_target:
+            return
+
+        self._flap_target = value
+
+        self._create_flaps(
+            "".join(
+                random.choice(
+                    self.FLAP_CHARACTERS
+                )
+                for _ in value
+            )
+        )
+
+        # Characters settle progressively from left to right.
+        self._flap_settle_ticks = [
+            7 + index * 2
+            for index in range(
+                len(value)
+            )
+        ]
+
+        self._flap_tick = 0
+
+        self._flap_timer.start()
+
+    def _advance_flap(self):
+        """Advance one frame of the mechanical flap animation."""
+
+        target = self._flap_target
+
+        if not target:
+            self._flap_timer.stop()
+            self._create_flaps("")
+            return
+
+        # Rebuild if the target length changed.
+        if len(self.flap_labels) != len(target):
+            self._create_flaps(
+                target
+            )
+
+        for index, character in enumerate(
+            target
+        ):
+            settle_tick = (
+                self._flap_settle_ticks[index]
+                if index < len(
+                    self._flap_settle_ticks
+                )
+                else 7
+            )
+
+            if self._flap_tick >= settle_tick:
+                displayed = character
+            else:
+                displayed = random.choice(
+                    self.FLAP_CHARACTERS
+                )
+
+            self.flap_labels[
+                index
+            ].setText(
+                displayed
+            )
+
+        self._flap_tick += 1
+
+        if self._flap_tick >= (
+            max(
+                self._flap_settle_ticks,
+                default=0,
+            ) + 1
+        ):
+            self._flap_timer.stop()
+
+            for label, character in zip(
+                self.flap_labels,
+                target,
+            ):
+                label.setText(
+                    character
+                )
+
 
 
 # =========================================================
@@ -970,7 +1185,9 @@ class DashboardPage(QWidget):
             f"Current logbook: {Path(logbook_path).name}"
         )
 
-        self.loading_frame.show()
+        # Parsing has completed. The loading/progress area
+        # should not remain visible on the finished dashboard.
+        self.loading_frame.hide()
 
         for widget in (
             self.flights_card,
@@ -7121,6 +7338,105 @@ def apply_style(app):
 
         #airportsTable QTableWidgetItem {
             padding: 8px;
+        }
+
+        /* ---------------------------------------------
+           PHASE 1 DASHBOARD POLISH
+           --------------------------------------------- */
+
+        #pageTitle {
+            font-size: 32px;
+            font-weight: 750;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+        }
+
+        #pageSubtitle {
+            font-size: 15px;
+            color: #64748b;
+        }
+
+        #sidebar {
+            background: #0f172a;
+        }
+
+        #logo {
+            color: #f8fafc;
+            font-size: 22px;
+            font-weight: 750;
+            padding-left: 10px;
+        }
+
+        #navigationButton {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 11px 15px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 550;
+        }
+
+        #navigationButton:hover {
+            background: #1e293b;
+            color: #f8fafc;
+            border-color: #334155;
+        }
+
+        #navigationButton:pressed {
+            background: #334155;
+            color: #ffffff;
+        }
+
+        #content {
+            background: #f4f6f8;
+        }
+
+        #card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+        }
+
+        #cardLabel {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 550;
+        }
+
+        #yearTabs::pane {
+            border: none;
+            background: transparent;
+        }
+
+        #yearTabs QTabBar::tab {
+            background: #0f172a;
+            color: #cbd5e1;
+            border: 1px solid #0f172a;
+            border-radius: 8px;
+            padding: 9px 19px;
+            margin-right: 6px;
+            min-width: 58px;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        #yearTabs QTabBar::tab:hover {
+            background: #1e293b;
+            border-color: #334155;
+            color: #f8fafc;
+        }
+
+        #yearTabs QTabBar::tab:selected {
+            background: #475569;
+            border-color: #475569;
+            color: #ffffff;
+            font-weight: 750;
+        }
+
+        #yearTabs QTabBar::tab:pressed {
+            background: #334155;
         }
 
         #yearTabs::pane {

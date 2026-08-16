@@ -13,6 +13,7 @@ def parse_flight_file(
     progress_callback=None,
     discrepancy_callback=None,
     previous_experience_callback=None,
+    flight_callback=None,
 ):
     """Parse a supported FlightStats input file."""
     path = Path(path)
@@ -26,6 +27,7 @@ def parse_flight_file(
             previous_experience_callback=(
                 previous_experience_callback
             ),
+            flight_callback=flight_callback,
         )
 
     if suffix == ".csv":

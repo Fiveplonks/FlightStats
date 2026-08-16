@@ -405,6 +405,7 @@ def parse_logbook(
     progress_callback=None,
     discrepancy_callback=None,
     previous_experience_callback=None,
+    flight_callback=None,
 ):
     """
     Parse all completed/current flight rows from a logbook PDF.
@@ -516,6 +517,11 @@ def parse_logbook(
                     flights.append(
                         flight
                     )
+
+                    if flight_callback is not None:
+                        flight_callback(
+                            flight
+                        )
 
                     if (
                         discrepancy is not None
