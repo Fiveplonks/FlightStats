@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QTableWidgetItem,
     QVBoxLayout,
 )
 
@@ -496,3 +497,43 @@ class LogbookDropZone(QFrame):
                 return
 
         event.ignore()
+
+class SortableTableWidgetItem(QTableWidgetItem):
+    """Table item that sorts using a hidden numeric value when supplied."""
+
+    def __init__(
+        self,
+        text,
+        sort_value=None,
+    ):
+        super().__init__(
+            str(text)
+        )
+
+        self.sort_value = sort_value
+
+    def __lt__(
+        self,
+        other,
+    ):
+        if isinstance(
+            other,
+            SortableTableWidgetItem,
+        ):
+            if (
+                self.sort_value is not None
+                and other.sort_value is not None
+            ):
+                return (
+                    self.sort_value
+                    < other.sort_value
+                )
+
+        # Do not call QTableWidgetItem.__lt__ here.
+        # PySide6 can route that call back through this Python
+        # override, causing infinite recursion.
+        return str(
+            self.text()
+        ).casefold() < str(
+            other.text()
+        ).casefold()
