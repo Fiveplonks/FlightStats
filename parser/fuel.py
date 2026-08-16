@@ -24,48 +24,6 @@ class FuelDatabase:
         "L/h",
     }
 
-    NORMALIZATION = {
-        "737-700": "B737-700",
-        "B737-700": "B737-700",
-        "800": "B737-800",
-        "737-800": "B737-800",
-        "B737-800": "B737-800",
-        "8200": "B737-8200",
-        "737-8200": "B737-8200",
-        "B737-8200": "B737-8200",
-        "B38M": "B737-8200",
-        "737 MAX 8": "B737-8200",
-        "B737 MAX 8": "B737-8200",
-        "B737-900": "B737-900",
-        "B737-COMBI": "B737-COMBI",
-        "A319": "A319",
-        "A320": "A320",
-        "A330-200": "A330-200",
-        "A330-200F": "A330-200F",
-        "A330-900": "A330-900",
-        "CRJ900": "CRJ900",
-        "DH8D": "DH8D",
-        "ATR72": "ATR72",
-        "PA44": "PA44",
-        "PA28": "PA28",
-        "PA34": "PA34",
-        "PA44": "PA44",
-        "EA300L": "EA300L",
-    }
-
-    OPENAP_TYPES = {
-        "B737-700": "B737",
-        "B737-800": "B738",
-        "B737-8200": "B38M",
-        "B737-900": "B739",
-        "B737-COMBI": "B737",
-        "A319": "A319",
-        "A320": "A320",
-        "A330-200": "A332",
-        "A330-200F": "A332",
-        "CRJ900": "CRJ9",
-    }
-
     # Supplementary profiles are used only when OpenAP cannot resolve
     # the aircraft. Values are deliberately kept separate from OpenAP
     # and include provenance/methodology in the profile notes.
