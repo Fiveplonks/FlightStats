@@ -7164,6 +7164,20 @@ class MainWindow(QMainWindow):
     # DASHBOARD
     # =====================================================
 
+    def closeEvent(self, event):
+        """Stop background loading before closing the application."""
+
+        thread = self.loader_thread
+
+        if (
+            thread is not None
+            and thread.isRunning()
+        ):
+            thread.quit()
+            thread.wait()
+
+        event.accept()
+
     def update_dashboard(self):
         """Update Dashboard using the selected year tab."""
 
