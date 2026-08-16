@@ -2193,6 +2193,10 @@ class AircraftPage(QWidget):
 
         stats = {}
 
+        from parser.aircraft import AircraftResolver
+
+        aircraft_resolver = AircraftResolver()
+
         for index in selected_indexes:
             flight = self.data.flights[index]
 
@@ -2255,7 +2259,23 @@ class AircraftPage(QWidget):
                             distance
                         )
 
-                        if flight.flight_minutes:
+                        # Local flights (departure == arrival) do not
+                        # provide a meaningful airport-to-airport
+                        # distance, so exclude them from average speed.
+                        resolution = (
+                            aircraft_resolver.resolve(
+                                flight.aircraft
+                            )
+                        )
+
+                        if (
+                            resolution.category
+                            != "general_aviation"
+                            and flight.flight_minutes
+                            and flight.departure
+                            != flight.arrival
+                            and distance > 0
+                        ):
                             speed = (
                                 distance
                                 / flight.flight_minutes
@@ -5425,6 +5445,11 @@ class PerformancePage(QWidget):
     def _update_aircraft_table(self, selected, total_flights):
         """Build aircraft-level operational performance."""
         database = FuelDatabase()
+
+        from parser.aircraft import AircraftResolver
+
+        aircraft_resolver = AircraftResolver()
+
         stats = {}
 
         for index, flight in selected:
@@ -5457,7 +5482,21 @@ class PerformancePage(QWidget):
                 item["distance"] += distance
                 item["distance_count"] += 1
 
-            if speed is not None:
+            resolution = aircraft_resolver.resolve(
+                flight.aircraft
+            )
+
+            # General-aviation training flights often operate
+            # non-directly between nearby airports. Their
+            # airport-to-airport distance therefore does not
+            # represent a meaningful cruise/air speed.
+            #
+            # Keep their flight time and distance statistics,
+            # but exclude them from average-speed calculation.
+            if (
+                resolution.category != "general_aviation"
+                and speed is not None
+            ):
                 item["speed_total"] += speed
                 item["speed_count"] += 1
 

@@ -23,6 +23,7 @@ class AircraftResolution:
     icao: Optional[str]
     openap: Optional[str]
     openap_available: bool
+    category: str
     status: str
 
 
@@ -171,6 +172,11 @@ class AircraftResolver:
         "A388": ("Airbus A380-800", "A388"),
         "A380": ("Airbus A380-800", "A388"),
 
+        # General aviation / training
+        "PA28": ("Piper PA-28", "PA28"),
+        "PA34": ("Piper PA-34 Seneca", "PA34"),
+        "PA44": ("Piper PA-44 Seminole", "PA44"),
+
         # Regional
         "CRJ9": ("Bombardier CRJ-900", "CRJ9"),
         "CRJ900": ("Bombardier CRJ-900", "CRJ9"),
@@ -209,6 +215,82 @@ class AircraftResolver:
             }
         except Exception:
             pass
+
+    # Statistical/operational aircraft categories.
+    #
+    # This classification is deliberately separate from the
+    # canonical aircraft identity and OpenAP performance model.
+    #
+    # "general_aviation" is particularly important for aircraft
+    # commonly used for local/training flights, where airport-to-
+    # airport distance is not a useful proxy for distance flown.
+    AIRCRAFT_CATEGORIES = {
+        # General aviation / training
+        "PA28": "general_aviation",
+        "PA34": "general_aviation",
+        "PA44": "general_aviation",
+        "EA30": "general_aviation",
+        "EA300": "general_aviation",
+
+        # Regional
+        "CRJ9": "regional",
+        "E145": "regional",
+        "E170": "regional",
+        "E190": "regional",
+        "E195": "regional",
+        "E75L": "regional",
+
+        # Business aviation
+        "GLF6": "business",
+
+        # Airbus narrowbody
+        "A318": "narrowbody",
+        "A319": "narrowbody",
+        "A320": "narrowbody",
+        "A321": "narrowbody",
+
+        # Boeing narrowbody
+        "B733": "narrowbody",
+        "B734": "narrowbody",
+        "B735": "narrowbody",
+        "B737": "narrowbody",
+        "B738": "narrowbody",
+        "B739": "narrowbody",
+        "B37M": "narrowbody",
+        "B38M": "narrowbody",
+        "B39M": "narrowbody",
+        "B3XM": "narrowbody",
+
+        # Widebody
+        "A332": "widebody",
+        "A333": "widebody",
+        "A343": "widebody",
+        "A359": "widebody",
+        "A388": "widebody",
+        "B744": "widebody",
+        "B748": "widebody",
+        "B752": "narrowbody",
+        "B762": "widebody",
+        "B763": "widebody",
+        "B772": "widebody",
+        "B773": "widebody",
+        "B77W": "widebody",
+        "B788": "widebody",
+        "B789": "widebody",
+        "B78X": "widebody",
+    }
+
+    @classmethod
+    def category_for_icao(cls, icao):
+        """Return the statistical category for an ICAO aircraft code."""
+
+        if not icao:
+            return "unknown"
+
+        return cls.AIRCRAFT_CATEGORIES.get(
+            str(icao).strip().upper(),
+            "unknown",
+        )
 
     DISPLAY_NAMES = {
         # Boeing 737 Classic / NG
@@ -343,6 +425,7 @@ class AircraftResolver:
                 icao=None,
                 openap=None,
                 openap_available=False,
+                category="unknown",
                 status="unknown",
             )
 
@@ -384,6 +467,9 @@ class AircraftResolver:
                     icao=normalized,
                     openap=openap,
                     openap_available=openap is not None,
+                    category=self.category_for_icao(
+                        normalized
+                    ),
                     status=(
                         "resolved"
                         if openap is not None
@@ -398,6 +484,7 @@ class AircraftResolver:
                 icao=None,
                 openap=None,
                 openap_available=False,
+                category="unknown",
                 status="unknown",
             )
 
@@ -448,6 +535,9 @@ class AircraftResolver:
             icao=icao,
             openap=openap,
             openap_available=openap is not None,
+            category=self.category_for_icao(
+                icao
+            ),
             status=(
                 "resolved"
                 if openap is not None
