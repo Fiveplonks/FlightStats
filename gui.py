@@ -1040,6 +1040,160 @@ class DashboardPage(QWidget):
             self.year_tabs
         )
 
+        # -------------------------------------------------
+        # CAREER STATS
+        # -------------------------------------------------
+
+        self.career_stats_frame = QFrame()
+
+        self.career_stats_frame.setObjectName(
+            "careerStatsFrame"
+        )
+
+        self.career_stats_frame.setStyleSheet(
+            """
+            QFrame#careerStatsFrame {
+                background-color: #ffffff;
+                border: 1px solid #dce3ea;
+                border-radius: 10px;
+            }
+
+            QLabel#careerStatsTitle {
+                color: #152238;
+                font-size: 17px;
+                font-weight: 700;
+            }
+
+            QLabel#careerStatLabel {
+                color: #718096;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            QLabel#careerStatValue {
+                color: #152238;
+                font-size: 15px;
+                font-weight: 700;
+            }
+            """
+        )
+
+        career_layout = QVBoxLayout(
+            self.career_stats_frame
+        )
+
+        career_layout.setContentsMargins(
+            22,
+            18,
+            22,
+            18,
+        )
+
+        career_layout.setSpacing(
+            12
+        )
+
+        career_title = QLabel(
+            "Career stats"
+        )
+
+        career_title.setObjectName(
+            "careerStatsTitle"
+        )
+
+        career_layout.addWidget(
+            career_title
+        )
+
+        career_grid = QGridLayout()
+
+        career_grid.setHorizontalSpacing(
+            35
+        )
+
+        career_grid.setVerticalSpacing(
+            12
+        )
+
+        self.career_stat_labels = {}
+
+        career_items = (
+            ("first_flight", "First flight"),
+            ("latest_flight", "Latest flight"),
+            ("longest_flight", "Longest flight"),
+            ("top_aircraft", "Most flown aircraft"),
+            ("top_airport", "Most visited airport"),
+            ("airport_count", "Airports visited"),
+        )
+
+        for index, (
+            key,
+            title,
+        ) in enumerate(
+            career_items
+        ):
+            row = index // 3
+            column = index % 3
+
+            item_widget = QWidget()
+
+            item_layout = QVBoxLayout(
+                item_widget
+            )
+
+            item_layout.setContentsMargins(
+                0,
+                0,
+                0,
+                0,
+            )
+
+            item_layout.setSpacing(
+                2
+            )
+
+            label = QLabel(
+                title
+            )
+
+            label.setObjectName(
+                "careerStatLabel"
+            )
+
+            value = QLabel(
+                "—"
+            )
+
+            value.setObjectName(
+                "careerStatValue"
+            )
+
+            item_layout.addWidget(
+                label
+            )
+
+            item_layout.addWidget(
+                value
+            )
+
+            career_grid.addWidget(
+                item_widget,
+                row,
+                column,
+            )
+
+            self.career_stat_labels[
+                key
+            ] = value
+
+        career_layout.addLayout(
+            career_grid
+        )
+
+        self.layout.addWidget(
+            self.career_stats_frame
+        )
+
         self.layout.addStretch()
 
     def show_logbook_selector(self, message=None):
@@ -1069,6 +1223,7 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
+            self.career_stats_frame,
         ):
             widget.hide()
 
@@ -1088,6 +1243,7 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
+            self.career_stats_frame,
         ):
             widget.hide()
 
@@ -1113,6 +1269,7 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
+            self.career_stats_frame,
         ):
             widget.show()
 
@@ -1288,9 +1445,183 @@ class DashboardPage(QWidget):
             f"{len(airports):,}"
         )
 
+        self.update_career_stats(
+            flights
+        )
+
 # =========================================================
 # LOGBOOK PAGE
 # =========================================================
+
+
+    def update_career_stats(
+        self,
+        flights,
+    ):
+        """Update the dashboard career statistics panel."""
+
+        if not flights:
+            for label in self.career_stat_labels.values():
+                label.setText("—")
+            return
+
+        dated_flights = [
+            flight
+            for flight in flights
+            if getattr(
+                flight,
+                "date",
+                None,
+            ) is not None
+        ]
+
+        # -------------------------------------------------
+        # FIRST / LATEST FLIGHT
+        # -------------------------------------------------
+
+        if dated_flights:
+            first_flight = min(
+                dated_flights,
+                key=lambda flight: flight.date,
+            )
+
+            latest_flight = max(
+                dated_flights,
+                key=lambda flight: flight.date,
+            )
+
+            self.career_stat_labels[
+                "first_flight"
+            ].setText(
+                first_flight.date.strftime(
+                    "%d %b %Y"
+                )
+            )
+
+            self.career_stat_labels[
+                "latest_flight"
+            ].setText(
+                latest_flight.date.strftime(
+                    "%d %b %Y"
+                )
+            )
+        else:
+            self.career_stat_labels[
+                "first_flight"
+            ].setText("—")
+
+            self.career_stat_labels[
+                "latest_flight"
+            ].setText("—")
+
+        # -------------------------------------------------
+        # LONGEST FLIGHT
+        # -------------------------------------------------
+
+        longest_minutes = max(
+            (
+                getattr(
+                    flight,
+                    "flight_minutes",
+                    0,
+                )
+                or 0
+            )
+            for flight in flights
+        )
+
+        self.career_stat_labels[
+            "longest_flight"
+        ].setText(
+            format_hours(
+                longest_minutes
+            )
+        )
+
+        # -------------------------------------------------
+        # MOST-FLOWN AIRCRAFT
+        # -------------------------------------------------
+
+        database = FuelDatabase()
+
+        aircraft_counts = {}
+
+        for flight in flights:
+            aircraft = database.normalize_type(
+                flight.aircraft
+            )
+
+            aircraft_counts[
+                aircraft
+            ] = (
+                aircraft_counts.get(
+                    aircraft,
+                    0,
+                )
+                + 1
+            )
+
+        if aircraft_counts:
+            top_aircraft = max(
+                aircraft_counts,
+                key=aircraft_counts.get,
+            )
+
+            self.career_stat_labels[
+                "top_aircraft"
+            ].setText(
+                f"{top_aircraft} "
+                f"({aircraft_counts[top_aircraft]} flights)"
+            )
+        else:
+            self.career_stat_labels[
+                "top_aircraft"
+            ].setText("—")
+
+        # -------------------------------------------------
+        # MOST-VISITED AIRPORT
+        # -------------------------------------------------
+
+        airport_counts = {}
+
+        for flight in flights:
+            for airport in (
+                flight.departure,
+                flight.arrival,
+            ):
+                if airport:
+                    airport_counts[
+                        airport
+                    ] = (
+                        airport_counts.get(
+                            airport,
+                            0,
+                        )
+                        + 1
+                    )
+
+        if airport_counts:
+            top_airport = max(
+                airport_counts,
+                key=airport_counts.get,
+            )
+
+            self.career_stat_labels[
+                "top_airport"
+            ].setText(
+                f"{top_airport} "
+                f"({airport_counts[top_airport]} visits)"
+            )
+        else:
+            self.career_stat_labels[
+                "top_airport"
+            ].setText("—")
+
+        self.career_stat_labels[
+            "airport_count"
+        ].setText(
+            f"{len(airport_counts):,}"
+        )
 
 
 class LogbookPage(QWidget):
