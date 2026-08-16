@@ -1040,93 +1040,6 @@ class DashboardPage(QWidget):
             self.year_tabs
         )
 
-        # -------------------------------------------------
-        # AIRCRAFT
-        # -------------------------------------------------
-
-        aircraft_title = QLabel(
-            "Aircraft"
-        )
-
-        aircraft_title.setObjectName(
-            "sectionTitle"
-        )
-
-        self.layout.addWidget(
-            aircraft_title
-        )
-
-        self.aircraft_container = QFrame()
-
-        self.aircraft_container.setObjectName(
-            "card"
-        )
-
-        # Scrollable aircraft list so rows keep their
-        # natural height regardless of aircraft count.
-        self.aircraft_scroll = QScrollArea()
-
-        self.aircraft_scroll.setWidgetResizable(
-            True
-        )
-
-        self.aircraft_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-
-        self.aircraft_scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-
-        self.aircraft_scroll.setFrameShape(
-            QFrame.Shape.NoFrame
-        )
-
-        self.aircraft_scroll.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
-
-        self.aircraft_content = QWidget()
-
-        self.aircraft_layout = QVBoxLayout(
-            self.aircraft_content
-        )
-
-        self.aircraft_layout.setContentsMargins(
-            20,
-            15,
-            20,
-            15,
-        )
-
-        self.aircraft_layout.setSpacing(
-            8
-        )
-
-        self.aircraft_scroll.setWidget(
-            self.aircraft_content
-        )
-
-        container_layout = QVBoxLayout(
-            self.aircraft_container
-        )
-
-        container_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
-
-        container_layout.addWidget(
-            self.aircraft_scroll
-        )
-
-        self.layout.addWidget(
-            self.aircraft_container
-        )
-
         self.layout.addStretch()
 
     def show_logbook_selector(self, message=None):
@@ -1156,7 +1069,6 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
-            self.aircraft_container,
         ):
             widget.hide()
 
@@ -1176,7 +1088,6 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
-            self.aircraft_container,
         ):
             widget.hide()
 
@@ -1202,7 +1113,6 @@ class DashboardPage(QWidget):
             self.piston_fuel_card,
             self.airports_card,
             self.year_tabs,
-            self.aircraft_container,
         ):
             widget.show()
 
@@ -1377,183 +1287,6 @@ class DashboardPage(QWidget):
         self.airports_card.set_value(
             f"{len(airports):,}"
         )
-
-        self.update_filtered_aircraft(
-            flights
-        )
-
-    def update_filtered_aircraft(self, flights):
-        """Update aircraft rows for the selected year."""
-
-        self.clear_aircraft()
-
-        database = FuelDatabase()
-        aircraft_counts = {}
-        aircraft_times = {}
-
-        for flight in flights:
-            aircraft = database.normalize_type(
-                flight.aircraft
-            )
-
-            aircraft_counts[aircraft] = (
-                aircraft_counts.get(aircraft, 0) + 1
-            )
-            aircraft_times[aircraft] = (
-                aircraft_times.get(aircraft, 0)
-                + (flight.flight_minutes or 0)
-            )
-
-        for aircraft in sorted(
-            aircraft_counts,
-            key=lambda item: (
-                -aircraft_counts[item],
-                item,
-            ),
-        ):
-            row_widget = QWidget()
-            row = QHBoxLayout(row_widget)
-            row.setContentsMargins(0, 0, 0, 0)
-
-            aircraft_label = QLabel(aircraft)
-            aircraft_label.setObjectName(
-                "aircraftName"
-            )
-
-            count_label = QLabel(
-                f"{aircraft_counts[aircraft]} flights"
-            )
-            count_label.setObjectName(
-                "aircraftCount"
-            )
-
-            time_label = QLabel(
-                format_hours(
-                    aircraft_times[aircraft]
-                )
-            )
-            time_label.setObjectName(
-                "aircraftTime"
-            )
-
-            row.addWidget(aircraft_label)
-            row.addStretch()
-            row.addWidget(count_label)
-            row.addWidget(time_label)
-
-            self.aircraft_layout.addWidget(
-                row_widget
-            )
-
-    def clear_aircraft(self):
-        """Remove aircraft rows."""
-
-        while self.aircraft_layout.count() > 0:
-            item = self.aircraft_layout.takeAt(0)
-
-            widget = item.widget()
-
-            if widget is not None:
-                widget.deleteLater()
-
-
-    def update_aircraft(
-        self,
-        data,
-    ):
-        """Update aircraft summary."""
-
-        self.clear_aircraft()
-
-        database = FuelDatabase()
-
-        aircraft_counts = {}
-        aircraft_times = {}
-
-        for flight in data.flights:
-
-            aircraft = (
-                database.normalize_type(
-                    flight.aircraft
-                )
-            )
-
-            aircraft_counts[
-                aircraft
-            ] = (
-                aircraft_counts.get(
-                    aircraft,
-                    0,
-                )
-                + 1
-            )
-
-            aircraft_times[
-                aircraft
-            ] = (
-                aircraft_times.get(
-                    aircraft,
-                    0,
-                )
-                + flight.flight_minutes
-            )
-
-        for aircraft in sorted(
-            aircraft_counts,
-            key=lambda item: (
-                -aircraft_counts[item],
-                item,
-            ),
-        ):
-
-            row = QHBoxLayout()
-
-            aircraft_label = QLabel(
-                aircraft
-            )
-
-            aircraft_label.setObjectName(
-                "aircraftName"
-            )
-
-            count_label = QLabel(
-                f"{aircraft_counts[aircraft]} flights"
-            )
-
-            count_label.setObjectName(
-                "aircraftCount"
-            )
-
-            time_label = QLabel(
-                format_hours(
-                    aircraft_times[
-                        aircraft
-                    ]
-                )
-            )
-
-            time_label.setObjectName(
-                "aircraftTime"
-            )
-
-            row.addWidget(
-                aircraft_label
-            )
-
-            row.addStretch()
-
-            row.addWidget(
-                count_label
-            )
-
-            row.addWidget(
-                time_label
-            )
-
-            self.aircraft_layout.addLayout(
-                row
-            )
-
 
 # =========================================================
 # LOGBOOK PAGE
@@ -7364,26 +7097,31 @@ def apply_style(app):
         }
 
         #logbookTable {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border: 1px solid #dbe1e8;
             border-radius: 10px;
-            gridline-color: #eef0f2;
-            selection-background-color: #e5e7eb;
-            selection-color: #111827;
+            gridline-color: #edf1f5;
+            selection-background-color: #e8edf3;
+            selection-color: #0f172a;
+            alternate-background-color: #f8fafc;
         }
 
         #logbookTable QHeaderView::section {
-            background: #f9fafb;
-            color: #4b5563;
+            background: #eef2f6;
+            color: #334155;
             border: none;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 10px 8px;
-            font-size: 12px;
-            font-weight: 600;
+            border-bottom: 1px solid #d6dde6;
+            padding: 11px 9px;
+            font-size: 11px;
+            font-weight: 750;
         }
 
         #logbookTable QTableWidgetItem {
-            padding: 8px;
+            padding: 9px;
+        }
+
+        #logbookTable::item:hover {
+            background: #f1f5f9;
         }
 
         /* ---------------------------------------------
@@ -7442,26 +7180,31 @@ def apply_style(app):
         }
 
         #performanceTable {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border: 1px solid #dbe1e8;
             border-radius: 10px;
-            gridline-color: #eef0f2;
-            selection-background-color: #e5e7eb;
-            selection-color: #111827;
+            gridline-color: #edf1f5;
+            selection-background-color: #e8edf3;
+            selection-color: #0f172a;
+            alternate-background-color: #f8fafc;
         }
 
         #performanceTable QHeaderView::section {
-            background: #f9fafb;
-            color: #4b5563;
+            background: #eef2f6;
+            color: #334155;
             border: none;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 10px 8px;
-            font-size: 12px;
-            font-weight: 600;
+            border-bottom: 1px solid #d6dde6;
+            padding: 11px 9px;
+            font-size: 11px;
+            font-weight: 750;
         }
 
         #performanceTable QTableWidgetItem {
-            padding: 8px;
+            padding: 9px;
+        }
+
+        #performanceTable::item:hover {
+            background: #f1f5f9;
         }
 
         #homeBaseList {
@@ -7484,26 +7227,31 @@ def apply_style(app):
         }
 
         #airportsTable {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            border: 1px solid #dbe1e8;
             border-radius: 10px;
-            gridline-color: #eef0f2;
-            selection-background-color: #e5e7eb;
-            selection-color: #111827;
+            gridline-color: #edf1f5;
+            selection-background-color: #e8edf3;
+            selection-color: #0f172a;
+            alternate-background-color: #f8fafc;
         }
 
         #airportsTable QHeaderView::section {
-            background: #f9fafb;
-            color: #4b5563;
+            background: #eef2f6;
+            color: #334155;
             border: none;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 10px 8px;
-            font-size: 12px;
-            font-weight: 600;
+            border-bottom: 1px solid #d6dde6;
+            padding: 11px 9px;
+            font-size: 11px;
+            font-weight: 750;
         }
 
         #airportsTable QTableWidgetItem {
-            padding: 8px;
+            padding: 9px;
+        }
+
+        #airportsTable::item:hover {
+            background: #f1f5f9;
         }
 
         /* ---------------------------------------------
@@ -7620,43 +7368,23 @@ def apply_style(app):
             color: #ffffff;
         }
 
+        #yearTabs QTabBar::tab {
+            min-height: 18px;
+        }
+
+        #yearTabs QTabBar::tab:first {
+            margin-left: 0px;
+        }
+
+        #yearTabs QTabBar::tab:selected {
+            padding-left: 19px;
+            padding-right: 19px;
+        }
+
         #yearTabs QTabBar::tab:pressed {
             background: #334155;
             border-color: #334155;
             color: #ffffff;
-        }
-
-        #yearTabs::pane {
-            border: none;
-            background: transparent;
-        }
-
-        #yearTabs QTabBar::tab {
-            background: #111827;
-            color: #d1d5db;
-            border: 1px solid #111827;
-            border-radius: 7px;
-            padding: 9px 20px;
-            margin-right: 6px;
-            min-width: 58px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        #yearTabs QTabBar::tab:hover {
-            background: #1f2937;
-            color: white;
-        }
-
-        #yearTabs QTabBar::tab:selected {
-            background: #374151;
-            color: white;
-            border: 1px solid #374151;
-            font-weight: 700;
-        }
-
-        #yearTabs QTabBar::tab:pressed {
-            background: #4b5563;
         }
 
         #logbookDropZone {
