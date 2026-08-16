@@ -1,20 +1,18 @@
 import sys
 import json
-import math
 import random
 from pathlib import Path
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from PySide6.QtCore import (
     Qt,
     QThread,
     Signal,
-    QEvent,
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
 )
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QBrush, QPalette, QPalette
+from PySide6.QtGui import QColor
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,8 +36,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-QScrollArea,
-QSizePolicy,
+    QSizePolicy,
     QHeaderView,
     QListWidget,
     QListWidgetItem,
@@ -55,7 +52,6 @@ from app_paths import (
     SETTINGS_FILE,
     get_logbook_path,
 )
-from data_manager import FlightStatsData
 from gui_data_loader import DataLoaderWorker
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
