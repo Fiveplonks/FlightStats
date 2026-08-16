@@ -13,6 +13,8 @@ from app_paths import (
     migrate_file_if_needed,
 )
 
+from parser.aircraft import AircraftResolver
+
 
 class FuelDatabase:
     """Aircraft fuel-burn database."""
@@ -111,6 +113,18 @@ class FuelDatabase:
 
     def __init__(self):
         self.aircraft = {}
+
+        # Central aircraft identity resolver.
+        #
+        # This converts logbook representations such as:
+        #   738 / 737-800 / 73H -> B738
+        #   772 / 777-200 / 700-200 -> B772
+        #   789 / 787-9 / 787-900 -> B789
+        #
+        # FuelDatabase should deal with the resolved identity rather
+        # than having to maintain every possible logbook spelling.
+        self.aircraft_resolver = AircraftResolver()
+
         # Aircraft types that could not be resolved during this run.
         # Prevents repeated OpenAP lookups and repeated terminal output.
         self._unresolved_types = set()
@@ -130,14 +144,95 @@ class FuelDatabase:
 
     @classmethod
     def normalize_type(cls, aircraft_type):
+        """
+        Return the stable FlightStats aircraft grouping name.
+
+        AircraftResolver handles all logbook representations and maps
+        them to a single ICAO identity. FuelDatabase then converts that
+        identity into the consistent FlightStats display name.
+
+        Examples:
+
+            738 / 737-800 / 73H
+                -> B737-800
+
+            772 / 777-200 / 700-200
+                -> B777-200
+
+            789 / 787-9 / 787-900 / B787-9
+                -> B787-9
+
+            77W / 777-300ER
+                -> B777-300ER
+        """
+
         if not aircraft_type:
             return None
 
-        aircraft_type = aircraft_type.strip().upper()
+        resolver = AircraftResolver()
 
-        return cls.NORMALIZATION.get(
-            aircraft_type,
-            aircraft_type,
+        resolution = resolver.resolve(
+            aircraft_type
+        )
+
+        if resolution.icao:
+            display_names = {
+                "B733": "B737-300",
+                "B734": "B737-400",
+                "B735": "B737-500",
+                "B737": "B737-700",
+                "B738": "B737-800",
+                "B739": "B737-900",
+
+                "B37M": "B737-7 MAX",
+                "B38M": "B737-8200",
+                "B39M": "B737-9 MAX",
+                "B3XM": "B737-10 MAX",
+
+                "B744": "B747-400",
+                "B748": "B747-8",
+
+                "B752": "B757-200",
+
+                "B762": "B767-200",
+                "B763": "B767-300",
+
+                "B772": "B777-200",
+                "B773": "B777-300",
+                "B77W": "B777-300ER",
+
+                "B788": "B787-8",
+                "B789": "B787-9",
+                "B78X": "B787-10",
+
+                "A318": "A318",
+                "A319": "A319",
+                "A320": "A320",
+                "A321": "A321",
+                "A332": "A330-200",
+                "A333": "A330-300",
+                "A343": "A340-300",
+                "A359": "A350-900",
+                "A388": "A380-800",
+
+                "CRJ9": "CRJ900",
+                "E145": "E145",
+                "E170": "E170",
+                "E190": "E190",
+                "E195": "E195",
+            }
+
+            return display_names.get(
+                resolution.icao,
+                resolution.icao,
+            )
+
+        # Preserve unknown values so they can still be diagnosed
+        # and, later, manually assigned a fuel profile.
+        return (
+            str(aircraft_type)
+            .strip()
+            .upper()
         )
 
     def _active_database(self):
@@ -321,15 +416,21 @@ class FuelDatabase:
         if FuelFlow is None or prop is None:
             return None
 
-        normalized = self.normalize_type(aircraft_type)
+        resolution = self.aircraft_resolver.resolve(
+            aircraft_type
+        )
 
-        if not normalized:
+        if not resolution.openap:
             return None
 
-        openap_type = self.OPENAP_TYPES.get(
-            normalized,
-            normalized,
+        normalized = (
+            resolution.icao
+            or self.normalize_type(
+                aircraft_type
+            )
         )
+
+        openap_type = resolution.openap
 
         try:
             aircraft = prop.aircraft(
@@ -436,6 +537,48 @@ class FuelDatabase:
             "notes": profile["notes"],
         }
 
+    def add_manual_profile(
+        self,
+        aircraft_type,
+        average_burn,
+        unit,
+        notes="",
+    ):
+        """
+        Add a user-supplied fuel profile without interactive input.
+
+        This is the GUI-safe counterpart to request_profile().
+        """
+        if not aircraft_type:
+            raise ValueError(
+                "Aircraft type is required."
+            )
+
+        resolution = self.aircraft_resolver.resolve(
+            aircraft_type
+        )
+
+        normalized = self.normalize_type(
+            aircraft_type
+        )
+
+        if resolution.canonical:
+            normalized = resolution.canonical
+
+        if not normalized:
+            normalized = str(
+                aircraft_type
+            ).strip().upper()
+
+        return self.add(
+            aircraft_type=normalized,
+            average_burn=average_burn,
+            unit=unit,
+            method="User supplied",
+            source="User",
+            notes=notes,
+        )
+
     def request_profile(self, aircraft_type):
         normalized_type = self.normalize_type(aircraft_type)
 
@@ -471,6 +614,57 @@ class FuelDatabase:
             source="User",
             notes=notes,
         )
+
+    def diagnose_resolution(self, aircraft_type):
+        """Explain how FlightStats resolves an aircraft fuel profile."""
+
+        normalized = self.normalize_type(
+            aircraft_type
+        )
+
+        resolution = self.aircraft_resolver.resolve(
+            aircraft_type
+        )
+
+        profile = None
+
+        if normalized:
+            profile = self.find(
+                normalized
+            )
+
+        if profile:
+            fuel_status = "profile_available"
+
+        elif resolution.openap:
+            fuel_status = "openap_available"
+
+        elif resolution.status == "known_unsupported":
+            fuel_status = "known_unsupported"
+
+        elif resolution.status == "unknown":
+            supplementary = self.lookup_supplementary(
+                aircraft_type
+            )
+
+            if supplementary:
+                fuel_status = "supplementary_available"
+            else:
+                fuel_status = "unknown"
+
+        else:
+            fuel_status = "unknown"
+
+        return {
+            "raw": aircraft_type,
+            "normalized": normalized,
+            "canonical": resolution.canonical,
+            "icao": resolution.icao,
+            "openap": resolution.openap,
+            "aircraft_status": resolution.status,
+            "fuel_status": fuel_status,
+            "profile": profile,
+        }
 
     def resolve(
         self,

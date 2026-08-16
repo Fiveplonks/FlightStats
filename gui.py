@@ -55,6 +55,7 @@ from app_paths import (
 from data_manager import FlightStatsData
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
+from parser.fuel_analysis import calculate_all_fuel, summarize_fuel
 
 
 LOGBOOK = get_logbook_path()
@@ -6088,6 +6089,319 @@ class MainWindow(QMainWindow):
             message
         )
 
+    def request_missing_fuel_profile(
+        self,
+        aircraft_type,
+    ):
+        """Ask the user for a fuel profile for an unresolved aircraft."""
+
+        database = FuelDatabase()
+
+        diagnosis = database.diagnose_resolution(
+            aircraft_type
+        )
+
+        canonical = diagnosis.get(
+            "canonical"
+        )
+        icao = diagnosis.get(
+            "icao"
+        )
+        aircraft_status = diagnosis.get(
+            "aircraft_status"
+        )
+
+        dialog = QDialog(
+            self
+        )
+
+        dialog.setWindowTitle(
+            "Aircraft Fuel Profile Required"
+        )
+
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(
+            dialog
+        )
+
+        title = QLabel(
+            "No automatic fuel profile is available."
+        )
+
+        title.setObjectName(
+            "pageTitle"
+        )
+
+        layout.addWidget(
+            title
+        )
+
+        details = QLabel()
+
+        details_text = (
+            f"<b>Logbook aircraft:</b> "
+            f"{aircraft_type}"
+        )
+
+        if canonical:
+            details_text += (
+                f"<br><b>Recognized as:</b> "
+                f"{canonical}"
+            )
+
+        if icao:
+            details_text += (
+                f"<br><b>ICAO:</b> "
+                f"{icao}"
+            )
+
+        if aircraft_status:
+            details_text += (
+                f"<br><b>Status:</b> "
+                f"{aircraft_status.replace('_', ' ')}"
+            )
+
+        details.setText(
+            details_text
+        )
+
+        details.setWordWrap(
+            True
+        )
+
+        layout.addWidget(
+            details
+        )
+
+        explanation = QLabel(
+            "Enter an average fuel burn figure for this aircraft. "
+            "The value will be saved and used for all flights of "
+            "this aircraft type."
+        )
+
+        explanation.setWordWrap(
+            True
+        )
+
+        layout.addWidget(
+            explanation
+        )
+
+        form_layout = QGridLayout()
+
+        form_layout.addWidget(
+            QLabel("Average fuel burn:"),
+            0,
+            0,
+        )
+
+        fuel_edit = QLineEdit()
+
+        fuel_edit.setPlaceholderText(
+            "e.g. 2500"
+        )
+
+        form_layout.addWidget(
+            fuel_edit,
+            0,
+            1,
+        )
+
+        form_layout.addWidget(
+            QLabel("Unit:"),
+            1,
+            0,
+        )
+
+        unit_combo = QComboBox()
+
+        unit_combo.addItems(
+            [
+                "kg/h",
+                "L/h",
+            ]
+        )
+
+        form_layout.addWidget(
+            unit_combo,
+            1,
+            1,
+        )
+
+        form_layout.addWidget(
+            QLabel("Notes:"),
+            2,
+            0,
+        )
+
+        notes_edit = QLineEdit()
+
+        notes_edit.setPlaceholderText(
+            "Optional"
+        )
+
+        form_layout.addWidget(
+            notes_edit,
+            2,
+            1,
+        )
+
+        layout.addLayout(
+            form_layout
+        )
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Save
+            | QDialogButtonBox.Cancel
+        )
+
+        layout.addWidget(
+            buttons
+        )
+
+        buttons.accepted.connect(
+            dialog.accept
+        )
+
+        buttons.rejected.connect(
+            dialog.reject
+        )
+
+        if dialog.exec() != QDialog.Accepted:
+            return False
+
+        try:
+            average_burn = float(
+                fuel_edit.text().strip()
+            )
+        except ValueError:
+            QMessageBox.warning(
+                self,
+                "Invalid Fuel Figure",
+                "Please enter a valid numerical fuel-burn value.",
+            )
+            return self.request_missing_fuel_profile(
+                aircraft_type
+            )
+
+        if average_burn <= 0:
+            QMessageBox.warning(
+                self,
+                "Invalid Fuel Figure",
+                "Fuel burn must be greater than zero.",
+            )
+            return self.request_missing_fuel_profile(
+                aircraft_type
+            )
+
+        database.add(
+            aircraft_type=aircraft_type,
+            average_burn=average_burn,
+            unit=unit_combo.currentText(),
+            method="User supplied",
+            source="User",
+            notes=notes_edit.text().strip(),
+        )
+
+        return True
+
+    def resolve_missing_fuel_profiles(
+        self,
+    ):
+        """Ask for fuel profiles for all unresolved aircraft types."""
+
+        if self.data is None:
+            return False
+
+        # -------------------------------------------------
+        # GROUP BY RESOLVED AIRCRAFT IDENTITY
+        # -------------------------------------------------
+        #
+        # Multiple logbook representations can refer to the
+        # same aircraft:
+        #
+        #   789 / 787-9 / 787-900 / B787-9
+        #       -> B787-9
+        #
+        #   8200 / 737-8200 / B38M
+        #       -> B737-8200
+        #
+        # Ask the user only once for each actual aircraft
+        # identity.
+        #
+        database = FuelDatabase()
+
+        unresolved = {}
+
+        for result in self.data.fuel_results:
+
+            if result.get("fuel") is not None:
+                continue
+
+            flight = result.get("flight")
+
+            if flight is None or not flight.aircraft:
+                continue
+
+            raw_type = flight.aircraft
+
+            normalized_type = database.normalize_type(
+                raw_type
+            )
+
+            if not normalized_type:
+                normalized_type = raw_type
+
+            unresolved.setdefault(
+                normalized_type,
+                raw_type,
+            )
+
+        if not unresolved:
+            return False
+
+        changed = False
+
+        for normalized_type in sorted(
+            unresolved,
+            key=str.upper,
+        ):
+            # Use the stable FlightStats aircraft name in
+            # the dialog whenever possible.
+            aircraft_type = normalized_type
+
+            if self.request_missing_fuel_profile(
+                aircraft_type
+            ):
+                changed = True
+
+        if not changed:
+            return False
+
+        # -------------------------------------------------
+        # RECALCULATE FUEL
+        # -------------------------------------------------
+
+        database = FuelDatabase()
+
+        self.data.fuel_database = database
+
+        self.data.fuel_results = (
+            calculate_all_fuel(
+                self.data.flights,
+                database,
+            )
+        )
+
+        self.data.fuel_summary = (
+            summarize_fuel(
+                self.data.fuel_results
+            )
+        )
+
+        return True
+
     def data_loaded(
         self,
         data,
@@ -6124,6 +6438,39 @@ class MainWindow(QMainWindow):
         self.performance_page.set_data(
             self.data
         )
+
+        # -------------------------------------------------
+        # MISSING FUEL PROFILES
+        # -------------------------------------------------
+        #
+        # Data loading happens in a worker thread, so the
+        # dialog is deliberately opened here, after the
+        # finished signal has returned execution to the GUI
+        # thread.
+        #
+        if self.resolve_missing_fuel_profiles():
+
+            # Refresh every page that displays fuel data.
+            self.dashboard_page.set_data(
+                self.data,
+                self.logbook_path,
+            )
+
+            self.logbook_page.set_data(
+                self.data
+            )
+
+            self.aircraft_page.set_data(
+                self.data
+            )
+
+            self.fuel_page.set_data(
+                self.data
+            )
+
+            self.performance_page.set_data(
+                self.data
+            )
 
         self.show_discrepancies(
             getattr(

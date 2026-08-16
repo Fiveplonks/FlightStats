@@ -95,7 +95,7 @@ LOGGED_TIME_PAIR_PATTERN = re.compile(
 # applicable flight-entry page and is never added to the
 # calculated flight-time pipeline.
 PREVIOUS_EXPERIENCE_PATTERN = re.compile(
-    r"TOTAL\s+FROM\s+([0-9.]+):([0-5]\d)",
+    r"TOTAL\s+FROM\s+PREVIOUS\s+PAGES\s+([0-9.]+):([0-5]\d)",
     re.IGNORECASE,
 )
 
