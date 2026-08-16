@@ -53,6 +53,7 @@ from app_paths import (
     get_logbook_path,
 )
 from gui_data_loader import DataLoaderWorker
+from gui_fuel_dialog import show_missing_fuel_profile_dialog
 from gui_discrepancy_dialog import show_discrepancies
 from gui_style import apply_style
 from parser.airports import AirportDatabase
@@ -6597,210 +6598,26 @@ class MainWindow(QMainWindow):
             aircraft_type
         )
 
-        canonical = diagnosis.get(
-            "canonical"
-        )
-        icao = diagnosis.get(
-            "icao"
-        )
-        aircraft_status = diagnosis.get(
-            "aircraft_status"
+        profile = show_missing_fuel_profile_dialog(
+            self,
+            aircraft_type,
+            diagnosis,
         )
 
-        dialog = QDialog(
-            self
-        )
-
-        dialog.setWindowTitle(
-            "Aircraft Fuel Profile Required"
-        )
-
-        dialog.setModal(True)
-
-        layout = QVBoxLayout(
-            dialog
-        )
-
-        title = QLabel(
-            "No automatic fuel profile is available."
-        )
-
-        title.setObjectName(
-            "pageTitle"
-        )
-
-        layout.addWidget(
-            title
-        )
-
-        details = QLabel()
-
-        details_text = (
-            f"<b>Logbook aircraft:</b> "
-            f"{aircraft_type}"
-        )
-
-        if canonical:
-            details_text += (
-                f"<br><b>Recognized as:</b> "
-                f"{canonical}"
-            )
-
-        if icao:
-            details_text += (
-                f"<br><b>ICAO:</b> "
-                f"{icao}"
-            )
-
-        if aircraft_status:
-            details_text += (
-                f"<br><b>Status:</b> "
-                f"{aircraft_status.replace('_', ' ')}"
-            )
-
-        details.setText(
-            details_text
-        )
-
-        details.setWordWrap(
-            True
-        )
-
-        layout.addWidget(
-            details
-        )
-
-        explanation = QLabel(
-            "Enter an average fuel burn figure for this aircraft. "
-            "The value will be saved and used for all flights of "
-            "this aircraft type."
-        )
-
-        explanation.setWordWrap(
-            True
-        )
-
-        layout.addWidget(
-            explanation
-        )
-
-        form_layout = QGridLayout()
-
-        form_layout.addWidget(
-            QLabel("Average fuel burn:"),
-            0,
-            0,
-        )
-
-        fuel_edit = QLineEdit()
-
-        fuel_edit.setPlaceholderText(
-            "e.g. 2500"
-        )
-
-        form_layout.addWidget(
-            fuel_edit,
-            0,
-            1,
-        )
-
-        form_layout.addWidget(
-            QLabel("Unit:"),
-            1,
-            0,
-        )
-
-        unit_combo = QComboBox()
-
-        unit_combo.addItems(
-            [
-                "kg/h",
-                "L/h",
-            ]
-        )
-
-        form_layout.addWidget(
-            unit_combo,
-            1,
-            1,
-        )
-
-        form_layout.addWidget(
-            QLabel("Notes:"),
-            2,
-            0,
-        )
-
-        notes_edit = QLineEdit()
-
-        notes_edit.setPlaceholderText(
-            "Optional"
-        )
-
-        form_layout.addWidget(
-            notes_edit,
-            2,
-            1,
-        )
-
-        layout.addLayout(
-            form_layout
-        )
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Save
-            | QDialogButtonBox.Cancel
-        )
-
-        layout.addWidget(
-            buttons
-        )
-
-        buttons.accepted.connect(
-            dialog.accept
-        )
-
-        buttons.rejected.connect(
-            dialog.reject
-        )
-
-        if dialog.exec() != QDialog.Accepted:
+        if profile is None:
             return False
-
-        try:
-            average_burn = float(
-                fuel_edit.text().strip()
-            )
-        except ValueError:
-            QMessageBox.warning(
-                self,
-                "Invalid Fuel Figure",
-                "Please enter a valid numerical fuel-burn value.",
-            )
-            return self.request_missing_fuel_profile(
-                aircraft_type
-            )
-
-        if average_burn <= 0:
-            QMessageBox.warning(
-                self,
-                "Invalid Fuel Figure",
-                "Fuel burn must be greater than zero.",
-            )
-            return self.request_missing_fuel_profile(
-                aircraft_type
-            )
 
         database.add(
             aircraft_type=aircraft_type,
-            average_burn=average_burn,
-            unit=unit_combo.currentText(),
+            average_burn=profile["average_burn"],
+            unit=profile["unit"],
             method="User supplied",
             source="User",
-            notes=notes_edit.text().strip(),
+            notes=profile["notes"],
         )
 
         return True
+
 
     def resolve_missing_fuel_profiles(
         self,
