@@ -167,6 +167,60 @@ def parse_logged_flight_minutes(rest):
     )
 
 
+def parse_captain_from_tail(tail):
+    """
+    Extract the PIC name from an EASA/Belgian CAA row tail.
+
+    The Belgian CAA format may still contain the final HH MM
+    flight-time pair in the supplied text:
+
+        X 1 20 Kevin Quanten 2
+            -> Kevin Quanten
+
+    The standard EASA format has already separated the time pairs
+    from the tail, so the supplied text may simply be:
+
+        SCHOLLAERT Michel
+
+    or:
+
+        SCHOLLAERT Michel 1 1
+
+    Trailing numeric landing columns are removed.
+    """
+
+    value = str(tail or "").strip()
+
+    if not value:
+        return None
+
+    # Belgian CAA rows may still contain the final HH MM pair.
+    matches = list(
+        LOGGED_TIME_PAIR_PATTERN.finditer(
+            value
+        )
+    )
+
+    if matches:
+        value = value[
+            matches[-1].end():
+        ].strip()
+
+    # Remove trailing numeric landing-count columns.
+    parts = value.split()
+
+    while parts and re.fullmatch(
+        r"\d+",
+        parts[-1],
+    ):
+        parts.pop()
+
+    captain = " ".join(parts).strip()
+
+    return captain or None
+
+
+
 def parse_flight_row(line):
     """
     Parse one flight row.
@@ -251,6 +305,10 @@ def parse_flight_row(line):
     )
 
     if source_format == "standard_easa":
+        captain = parse_captain_from_tail(
+            data["tail"]
+        )
+
         time_pairs = list(
             re.finditer(
                 r"(?<!\d)(\d{1,2})\s+([0-5]\d)(?!\d)",
@@ -269,6 +327,10 @@ def parse_flight_row(line):
             logged_minutes = None
 
     else:
+        captain = parse_captain_from_tail(
+            data["rest"]
+        )
+
         logged_minutes = parse_logged_flight_minutes(
             data["rest"]
         )
@@ -308,6 +370,7 @@ def parse_flight_row(line):
         aircraft=data["aircraft"],
         registration=data["registration"],
         flight_minutes=flight_minutes,
+        captain=captain,
         logged_flight_minutes=logged_minutes,
         logged_time_status=logged_time_status,
     )

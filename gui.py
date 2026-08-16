@@ -3129,6 +3129,36 @@ class AirportsPage(QWidget):
             True
         )
 
+    def captain_identity(self, captain):
+        """
+        Return a normalized identity key for Captain comparisons.
+
+        EASA logbooks may represent the same person's name in
+        different orders, for example:
+
+            SCHOLLAERT Michel
+            Michel Schollaert
+
+        The original Captain value is preserved. This normalized
+        value is used only to determine duty continuity.
+        """
+
+        if not captain:
+            return None
+
+        parts = (
+            str(captain)
+            .strip()
+            .casefold()
+            .split()
+        )
+
+        if not parts:
+            return None
+
+        return tuple(sorted(parts))
+
+
     def calculate_turnarounds(
         self,
         selected_indexes,
@@ -3220,6 +3250,19 @@ class AirportsPage(QWidget):
             if (
                 flight.arrival
                 != next_flight.departure
+            ):
+                continue
+
+            # A layover/turnaround is considered part of the same
+            # duty only when the Captain remains the same.
+            #
+            # Missing Captain information is deliberately treated
+            # as unknown rather than assuming duty continuity.
+            if (
+                not flight.captain
+                or not next_flight.captain
+                or self.captain_identity(flight.captain)
+                != self.captain_identity(next_flight.captain)
             ):
                 continue
 

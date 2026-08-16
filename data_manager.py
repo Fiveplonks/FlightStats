@@ -22,7 +22,7 @@ from parser.performance_analysis import (
 )
 
 
-CACHE_VERSION = 4
+CACHE_VERSION = 5
 
 
 def _file_sha256(path):
@@ -192,6 +192,7 @@ def _flight_to_dict(flight):
         "aircraft": flight.aircraft,
         "registration": flight.registration,
         "flight_minutes": flight.flight_minutes,
+        "captain": flight.captain,
         "logged_flight_minutes": (
             flight.logged_flight_minutes
         ),
@@ -222,6 +223,9 @@ def _dict_to_flight(item):
         registration=item["registration"],
         flight_minutes=item.get(
             "flight_minutes"
+        ),
+        captain=item.get(
+            "captain"
         ),
         logged_flight_minutes=item.get(
             "logged_flight_minutes"
