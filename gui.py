@@ -2670,8 +2670,8 @@ class AirportsPage(QWidget):
 
         self.refresh_home_base_list()
 
-        self.home_base_list.installEventFilter(
-            self
+        self.home_base_list.itemDoubleClicked.connect(
+            self.remove_home_base
         )
 
         # -------------------------------------------------
@@ -2832,26 +2832,6 @@ class AirportsPage(QWidget):
         self.refresh_home_base_list()
 
         self.update_page()
-
-    def eventFilter(self, watched, event):
-        """Support double-click removal of home-base entries."""
-
-        if (
-            watched is self.home_base_list
-            and event.type() == QEvent.MouseButtonDblClick
-        ):
-            item = self.home_base_list.itemAt(
-                event.position().toPoint()
-            )
-
-            if item is not None:
-                self.remove_home_base(item)
-                return True
-
-        return super().eventFilter(
-            watched,
-            event,
-        )
 
     def set_data(
         self,
