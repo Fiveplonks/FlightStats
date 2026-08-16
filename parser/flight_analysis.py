@@ -66,10 +66,17 @@ def calculate_all_distances(
         start=1,
     ):
 
-        distance = calculate_flight_distance(
-            flight,
-            airport_database,
-        )
+        try:
+            distance = calculate_flight_distance(
+                flight,
+                airport_database,
+            )
+        except ValueError:
+            # An unresolved airport must not abort the entire
+            # logbook distance calculation. Preserve the flight
+            # with an unresolved distance so callers can count
+            # and report it.
+            distance = None
 
         results.append(
             {
