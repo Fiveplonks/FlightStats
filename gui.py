@@ -6,7 +6,6 @@ from pathlib import Path
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import (
-    QObject,
     Qt,
     QThread,
     Signal,
@@ -57,6 +56,7 @@ from app_paths import (
     get_logbook_path,
 )
 from data_manager import FlightStatsData
+from gui_data_loader import DataLoaderWorker
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
 from parser.fuel_analysis import calculate_all_fuel, summarize_fuel
@@ -162,63 +162,6 @@ def display_fuel_unit(unit):
     """Convert kg/h or L/h into kg or L."""
 
     return unit.replace("/h", "")
-
-
-# =========================================================
-# DATA LOADING WORKER
-# =========================================================
-
-
-class DataLoaderWorker(QObject):
-    """
-    Worker responsible for loading FlightStats data
-    outside the GUI thread.
-    """
-
-    progress = Signal(int, str)
-
-    finished = Signal(object)
-
-    error = Signal(str)
-
-    def __init__(self, logbook_path):
-        super().__init__()
-
-        self.logbook_path = logbook_path
-
-    def run(self):
-        """Load all FlightStats data."""
-
-        try:
-
-            data = FlightStatsData(
-                self.logbook_path,
-                progress_callback=(
-                    self.report_progress
-                ),
-            )
-
-            self.finished.emit(
-                data
-            )
-
-        except Exception as error:
-
-            self.error.emit(
-                str(error)
-            )
-
-    def report_progress(
-        self,
-        percent,
-        message,
-    ):
-        """Forward backend progress to the GUI."""
-
-        self.progress.emit(
-            percent,
-            message,
-        )
 
 
 # =========================================================
