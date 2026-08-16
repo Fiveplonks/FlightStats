@@ -16,11 +16,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (
-            str(PROJECT_DIR / "data" / "airports.csv"),
-            "data",
-        ),
-        (
-            str(PROJECT_DIR / "data" / "aircraft_fuel_burn.csv"),
+            str(PROJECT_DIR / "data"),
             "data",
         ),
         *OPENAP_DATA,
@@ -48,7 +44,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
 )
 
 coll = COLLECT(
@@ -63,6 +59,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="FlightStats.app",
-    icon=None,
+    icon=str(PROJECT_DIR / "FlightStats.icns"),
     bundle_identifier="com.flightstats.app",
 )
