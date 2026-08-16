@@ -4014,13 +4014,6 @@ const map = L.map('map', {
     zoomControl: true,
     attributionControl: true
 });
-            // Start with the complete world visible. Leaflet calculates
-            // the appropriate zoom from the actual map container size.
-            map.fitBounds([
-                [-85, -180],
-                [85, 180]
-            ]);
-
 
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -4146,6 +4139,49 @@ function setViewWorld() {
     map.fitWorld({ padding: [10, 10] });
 }
 
+function fitRouteBounds() {
+    const bounds = L.latLngBounds([]);
+
+    const routes = [
+        ...cumulativeRoutes,
+        ...currentRoutes
+    ];
+
+    for (const route of routes) {
+        const points = routePoints(route);
+
+        if (!points) continue;
+
+        for (const point of points) {
+            bounds.extend(point);
+        }
+    }
+
+    // If there are no routes, keep the existing world view.
+    if (!bounds.isValid()) {
+        setViewWorld();
+        return;
+    }
+
+    map.fitBounds(
+        bounds,
+        {
+            padding: [40, 40],
+            maxZoom: 7,
+            animate: false
+        }
+    );
+
+    // Give the default view three additional zoom levels of context.
+    const fittedZoom = map.getZoom();
+
+    if (fittedZoom > 3) {
+        map.setZoom(fittedZoom - 3, {
+            animate: false
+        });
+    }
+}
+
 function setData(data) {
     currentRoutes = data.currentRoutes || [];
     cumulativeRoutes = data.cumulativeRoutes || [];
@@ -4156,6 +4192,8 @@ function setData(data) {
     drawRoutes(cumulativeRoutes, cumulativeLayers, 0.72);
     drawRoutes(currentRoutes, currentLayers, 0.95);
     drawAirports();
+
+    fitRouteBounds();
 
     if (data.animationActive) {
         startAnimation();
@@ -4177,22 +4215,54 @@ function aircraftIcon(angle) {
 
 function interpolate(points, t) {
     if (!points || points.length === 0) return null;
-    if (points.length === 1) return { lat: points[0][0], lon: points[0][1], angle: 0 };
+
+    if (points.length === 1) {
+        return {
+            lat: points[0][0],
+            lon: points[0][1],
+            angle: 0
+        };
+    }
 
     const scaled = t * (points.length - 1);
-    const index = Math.min(points.length - 2, Math.floor(scaled));
+    const index = Math.min(
+        points.length - 2,
+        Math.floor(scaled)
+    );
     const local = scaled - index;
 
     const a = points[index];
     const b = points[index + 1];
+
     const lat = a[0] + (b[0] - a[0]) * local;
     const lon = a[1] + (b[1] - a[1]) * local;
 
-    const dy = b[0] - a[0];
-    const dx = b[1] - a[1];
-    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    // Calculate the geographic bearing from point A to point B.
+    //
+    // The aircraft SVG points north/up at rotation 0 degrees,
+    // so the geographic bearing can be used directly as the
+    // SVG rotation angle.
+    const lat1 = a[0] * Math.PI / 180;
+    const lat2 = b[0] * Math.PI / 180;
+    const deltaLon = (b[1] - a[1]) * Math.PI / 180;
 
-    return { lat, lon, angle };
+    const y = Math.sin(deltaLon) * Math.cos(lat2);
+
+    const x =
+        Math.cos(lat1) * Math.sin(lat2) -
+        Math.sin(lat1) * Math.cos(lat2) *
+        Math.cos(deltaLon);
+
+    let angle = Math.atan2(y, x) * 180 / Math.PI;
+
+    // Normalize to 0..360 degrees.
+    angle = (angle + 360) % 360;
+
+    return {
+        lat,
+        lon,
+        angle
+    };
 }
 
 function animationFrameStep(timestamp) {
