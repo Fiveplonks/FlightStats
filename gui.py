@@ -7252,27 +7252,59 @@ def apply_style(app):
             padding: 8px;
         }
 
+        /* ---------------------------------------------
+           AIRCRAFT OPERATIONS PANEL
+           --------------------------------------------- */
+
         #aircraftTable {
             background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            gridline-color: #eef0f2;
-            selection-background-color: #e5e7eb;
+            border: 1px solid #dbe1e8;
+            border-radius: 12px;
+            gridline-color: #eef1f4;
+            selection-background-color: #e8edf3;
             selection-color: #111827;
+            alternate-background-color: #f8fafc;
+        }
+
+        #aircraftTable QHeaderView {
+            background: #111827;
         }
 
         #aircraftTable QHeaderView::section {
-            background: #f9fafb;
-            color: #4b5563;
+            background: #111827;
+            color: #f9fafb;
             border: none;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 10px 8px;
+            border-right: 1px solid #293241;
+            padding: 11px 10px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
+        }
+
+        #aircraftTable QHeaderView::section:last {
+            border-right: none;
         }
 
         #aircraftTable QTableWidgetItem {
-            padding: 8px;
+            padding: 9px 10px;
+        }
+
+        #aircraftName {
+            color: #111827;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        #aircraftCount {
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        #aircraftTime {
+            color: #111827;
+            font-size: 13px;
+            font-weight: 700;
+            min-width: 70px;
         }
 
         #performanceTable {
@@ -7405,27 +7437,40 @@ def apply_style(app):
             font-weight: 550;
         }
 
+        /* ---------------------------------------------
+           YEAR / LOGBOOK HISTORY SELECTOR
+           --------------------------------------------- */
+
+        #yearTabs {
+            background: transparent;
+            border: none;
+        }
+
         #yearTabs::pane {
             border: none;
             background: transparent;
         }
 
+        #yearTabs QTabBar {
+            background: transparent;
+        }
+
         #yearTabs QTabBar::tab {
-            background: #0f172a;
-            color: #cbd5e1;
-            border: 1px solid #0f172a;
-            border-radius: 8px;
-            padding: 9px 19px;
-            margin-right: 6px;
-            min-width: 58px;
+            background: #ffffff;
+            color: #64748b;
+            border: 1px solid #dbe1e8;
+            border-radius: 7px;
+            padding: 8px 17px;
+            margin-right: 5px;
+            min-width: 54px;
             font-size: 13px;
-            font-weight: 650;
+            font-weight: 600;
         }
 
         #yearTabs QTabBar::tab:hover {
-            background: #1e293b;
-            border-color: #334155;
-            color: #f8fafc;
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: #334155;
         }
 
         #yearTabs QTabBar::tab:selected {
@@ -7435,8 +7480,16 @@ def apply_style(app):
             font-weight: 750;
         }
 
+        #yearTabs QTabBar::tab:selected:hover {
+            background: #334155;
+            border-color: #334155;
+            color: #ffffff;
+        }
+
         #yearTabs QTabBar::tab:pressed {
             background: #334155;
+            border-color: #334155;
+            color: #ffffff;
         }
 
         #yearTabs::pane {
