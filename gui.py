@@ -10,7 +10,7 @@ from PySide6.QtCore import (
     Signal,
     QTimer,
 )
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -1077,6 +1077,28 @@ def main():
     app = QApplication(
         sys.argv
     )
+
+    # -------------------------------------------------
+    # APPLICATION ICON
+    # -------------------------------------------------
+    # PyInstaller embeds the Windows icon into the EXE,
+    # but Qt needs its own application icon for the
+    # window title bar and taskbar.
+    if sys.platform == "win32":
+        icon_path = (
+            Path(__file__).resolve().parent
+            / "FlightStats.ico"
+        )
+    else:
+        icon_path = (
+            Path(__file__).resolve().parent
+            / "FlightStats.icns"
+        )
+
+    if icon_path.exists():
+        app.setWindowIcon(
+            QIcon(str(icon_path))
+        )
 
     apply_style(
         app
