@@ -83,6 +83,37 @@ from parser.fuel_analysis import calculate_all_fuel, summarize_fuel
 LOGBOOK = get_logbook_path()
 
 
+def find_unresolved_fuel_aircraft(fuel_results, database):
+    """Return unresolved aircraft grouped by normalized identity."""
+
+    unresolved = {}
+
+    for result in fuel_results:
+        if result.get("fuel") is not None:
+            continue
+
+        flight = result.get("flight")
+
+        if flight is None or not flight.aircraft:
+            continue
+
+        raw_type = flight.aircraft
+
+        normalized_type = database.normalize_type(
+            raw_type
+        )
+
+        if not normalized_type:
+            normalized_type = raw_type
+
+        unresolved.setdefault(
+            normalized_type,
+            raw_type,
+        )
+
+    return unresolved
+
+
 def load_saved_logbook():
     """Return the user's saved logbook path when it still exists."""
     try:
@@ -919,31 +950,10 @@ class MainWindow(QMainWindow):
         #
         database = FuelDatabase()
 
-        unresolved = {}
-
-        for result in self.data.fuel_results:
-
-            if result.get("fuel") is not None:
-                continue
-
-            flight = result.get("flight")
-
-            if flight is None or not flight.aircraft:
-                continue
-
-            raw_type = flight.aircraft
-
-            normalized_type = database.normalize_type(
-                raw_type
-            )
-
-            if not normalized_type:
-                normalized_type = raw_type
-
-            unresolved.setdefault(
-                normalized_type,
-                raw_type,
-            )
+        unresolved = find_unresolved_fuel_aircraft(
+            self.data.fuel_results,
+            database,
+        )
 
         if not unresolved:
             return False
