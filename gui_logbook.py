@@ -8,10 +8,11 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QTabWidget,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+
+from gui_components import SortableTableWidgetItem
 
 from gui_utils import (
     display_fuel_unit,
@@ -453,6 +454,7 @@ class LogbookPage(QWidget):
                 flight.date.strftime(
                     "%d-%m-%Y"
                 ),
+                flight.date,
             )
 
             self.set_item(
@@ -465,6 +467,13 @@ class LogbookPage(QWidget):
                 flight.departure_time
             )
 
+            departure_sort = (
+                departure_time.hour * 60
+                + departure_time.minute
+                if departure_time
+                else None
+            )
+
             self.set_item(
                 row,
                 2,
@@ -473,6 +482,7 @@ class LogbookPage(QWidget):
                 )
                 if departure_time
                 else "—",
+                departure_sort,
             )
 
             self.set_item(
@@ -485,6 +495,13 @@ class LogbookPage(QWidget):
                 flight.arrival_time
             )
 
+            arrival_sort = (
+                arrival_time.hour * 60
+                + arrival_time.minute
+                if arrival_time
+                else None
+            )
+
             self.set_item(
                 row,
                 4,
@@ -493,6 +510,7 @@ class LogbookPage(QWidget):
                 )
                 if arrival_time
                 else "—",
+                arrival_sort,
             )
 
             aircraft = (
@@ -519,6 +537,7 @@ class LogbookPage(QWidget):
                 format_hours(
                     flight.flight_minutes
                 ),
+                flight.flight_minutes,
             )
 
             distance_text = (
@@ -533,6 +552,7 @@ class LogbookPage(QWidget):
                 row,
                 8,
                 distance_text,
+                distance,
             )
 
             fuel_text = (
@@ -548,6 +568,7 @@ class LogbookPage(QWidget):
                 row,
                 9,
                 fuel_text,
+                fuel,
             )
 
         self.table.setSortingEnabled(
@@ -559,16 +580,18 @@ class LogbookPage(QWidget):
         row,
         column,
         text,
+        sort_value=None,
     ):
-        """Set table item."""
+        """Set table item with optional sorting value."""
 
-        item = QTableWidgetItem(
-            str(text)
+        item = SortableTableWidgetItem(
+            str(text),
+            sort_value,
         )
 
         self.table.setItem(
             row,
             column,
-            item
+            item,
         )
 
