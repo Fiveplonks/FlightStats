@@ -206,47 +206,160 @@ function setViewWorld() {
     map.fitWorld({ padding: [10, 10] });
 }
 
+let viewportRequestId = 0;
+
 function fitRouteBounds() {
-    const bounds = L.latLngBounds([]);
+    const requestId = ++viewportRequestId;
 
-    const routes = [
-        ...cumulativeRoutes,
-        ...currentRoutes
-    ];
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            if (requestId !== viewportRequestId) {
+                return;
+            }
 
-    for (const route of routes) {
-        const points = routePoints(route);
+            map.invalidateSize({
+                animate: false,
+                pan: false
+            });
 
-        if (!points) continue;
+            const routes = [
+                ...cumulativeRoutes,
+                ...currentRoutes
+            ];
 
-        for (const point of points) {
-            bounds.extend(point);
-        }
-    }
+            if (routes.length === 0) {
+                return;
+            }
 
-    // If there are no routes, keep the existing world view.
-    if (!bounds.isValid()) {
-        setViewWorld();
-        return;
-    }
+            // Calculate the geographic bounds directly from the route
+            // geometry. We deliberately do not use Leaflet fitBounds()
+            // because its viewport calculation behaves differently
+            // inside Qt WebEngine on Windows.
+            let minLat = 90;
+            let maxLat = -90;
+            let minLon = 180;
+            let maxLon = -180;
+            let validPoints = 0;
 
-    map.fitBounds(
-        bounds,
-        {
-            padding: [40, 40],
-            maxZoom: 7,
-            animate: false
-        }
-    );
+            for (const route of routes) {
+                const points = routePoints(route);
 
-    // Give the default view three additional zoom levels of context.
-    const fittedZoom = map.getZoom();
+                if (!points) {
+                    continue;
+                }
 
-    if (fittedZoom > 3) {
-        map.setZoom(fittedZoom - 3, {
-            animate: false
-        });
-    }
+                for (const point of points) {
+                    const lat = point[0];
+                    const lon = point[1];
+
+                    if (
+                        !Number.isFinite(lat) ||
+                        !Number.isFinite(lon)
+                    ) {
+                        continue;
+                    }
+
+                    minLat = Math.min(minLat, lat);
+                    maxLat = Math.max(maxLat, lat);
+                    minLon = Math.min(minLon, lon);
+                    maxLon = Math.max(maxLon, lon);
+                    validPoints++;
+                }
+            }
+
+            if (validPoints === 0) {
+                return;
+            }
+
+            const centerLat = (
+                minLat + maxLat
+            ) / 2;
+
+            const centerLon = (
+                minLon + maxLon
+            ) / 2;
+
+            const latitudeSpan = Math.max(
+                maxLat - minLat,
+                0.01
+            );
+
+            const longitudeSpan = Math.max(
+                maxLon - minLon,
+                0.01
+            );
+
+            const size = map.getSize();
+
+            if (
+                size.x <= 0 ||
+                size.y <= 0
+            ) {
+                return;
+            }
+
+            // Web Mercator zoom calculation.
+            //
+            // Padding is equivalent to approximately 40 px on
+            // each side, matching the previous fitBounds() call.
+            const usableWidth = Math.max(
+                size.x - 80,
+                1
+            );
+
+            const usableHeight = Math.max(
+                size.y - 80,
+                1
+            );
+
+            const latRad = centerLat * Math.PI / 180;
+
+            const worldSize = 256;
+
+            const longitudeZoom = Math.log2(
+                usableWidth /
+                worldSize *
+                360 /
+                longitudeSpan
+            );
+
+            const latitudeZoom = Math.log2(
+                usableHeight /
+                worldSize *
+                360 /
+                (
+                    latitudeSpan *
+                    Math.cos(latRad)
+                )
+            );
+
+            let fittedZoom = Math.min(
+                longitudeZoom,
+                latitudeZoom
+            );
+
+            // Fit the route and provide two levels of context.
+            // This gives one additional zoom level compared with
+            // the previous three-level context.
+            fittedZoom -= 2;
+
+            fittedZoom = Math.max(
+                1,
+                Math.min(
+                    7,
+                    fittedZoom
+                )
+            );
+
+            map.setView(
+                [centerLat, centerLon],
+                fittedZoom,
+                {
+                    animate: false
+                }
+            );
+        }, 75);
+    });
 }
 
 function setData(data) {
@@ -259,8 +372,6 @@ function setData(data) {
     drawRoutes(cumulativeRoutes, cumulativeLayers, 0.72);
     drawRoutes(currentRoutes, currentLayers, 0.95);
     drawAirports();
-
-    fitRouteBounds();
 
     if (data.animationActive) {
         startAnimation();
@@ -463,6 +574,7 @@ function setTraceColor(color) {
 
 window.flightStatsMap = {
     setData,
+    fitRouteBounds,
     startAnimation,
     stopAnimation,
     resetAnimation,
@@ -563,6 +675,11 @@ setViewWorld();
         self.web.page().runJavaScript(
             "window.flightStatsMap.setData(" + payload_json + ");"
         )
+
+        self.web.page().runJavaScript(
+            "window.flightStatsMap.fitRouteBounds();"
+        )
+
         self._pending_sync = False
 
     def _map_loaded(self, ok):
@@ -574,6 +691,82 @@ setViewWorld();
     # -----------------------------------------------------
     # DATA
     # -----------------------------------------------------
+
+    def set_map_data(
+        self,
+        flights,
+        cumulative_flights,
+        database,
+    ):
+        """Set current and cumulative routes in one map update."""
+
+        self.routes = []
+        self.airports = {}
+
+        for flight in flights:
+            departure = database.find(flight.departure)
+            arrival = database.find(flight.arrival)
+
+            if departure is None or arrival is None:
+                continue
+
+            if (
+                departure.get("latitude") is None
+                or departure.get("longitude") is None
+                or arrival.get("latitude") is None
+                or arrival.get("longitude") is None
+            ):
+                continue
+
+            dep = (
+                float(departure["longitude"]),
+                float(departure["latitude"]),
+                flight.departure,
+            )
+            arr = (
+                float(arrival["longitude"]),
+                float(arrival["latitude"]),
+                flight.arrival,
+            )
+
+            self.routes.append((dep, arr))
+            self.airports[flight.departure] = dep
+            self.airports[flight.arrival] = arr
+
+        self.cumulative_routes = []
+        self.cumulative_airports = {}
+
+        for flight in cumulative_flights:
+            departure = database.find(flight.departure)
+            arrival = database.find(flight.arrival)
+
+            if departure is None or arrival is None:
+                continue
+
+            if (
+                departure.get("latitude") is None
+                or departure.get("longitude") is None
+                or arrival.get("latitude") is None
+                or arrival.get("longitude") is None
+            ):
+                continue
+
+            dep = (
+                float(departure["longitude"]),
+                float(departure["latitude"]),
+                flight.departure,
+            )
+            arr = (
+                float(arrival["longitude"]),
+                float(arrival["latitude"]),
+                flight.arrival,
+            )
+
+            self.cumulative_routes.append((dep, arr))
+            self.cumulative_airports[flight.departure] = dep
+            self.cumulative_airports[flight.arrival] = arr
+
+        self._sync_map()
 
     def set_flights(self, flights, database):
         """Set the routes currently visible on the map."""
