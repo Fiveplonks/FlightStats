@@ -9,8 +9,6 @@ from PySide6.QtCore import (
     QThread,
     Signal,
     QTimer,
-    QPropertyAnimation,
-    QEasingCurve,
 )
 from PySide6.QtGui import QColor
 
@@ -21,6 +19,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFrame,
     QGridLayout,
+    QButtonGroup,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QSlider,
     QStackedWidget,
-    QGraphicsOpacityEffect,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -424,41 +422,6 @@ class MainWindow(QMainWindow):
             self.performance_page
         )
 
-        # -------------------------------------------------
-        # PAGE TRANSITIONS
-        # -------------------------------------------------
-        #
-        # Apply opacity effects to the individual Qt pages
-        # rather than to the QStackedWidget itself.
-        #
-        # The Map page contains QWebEngineView and must remain
-        # free of graphics effects because WebEngine uses its
-        # own composited rendering surface.
-        # -------------------------------------------------
-
-        self.page_effects = {}
-
-        for page in (
-            self.dashboard_page,
-            self.logbook_page,
-            self.aircraft_page,
-            self.airports_page,
-            self.performance_page,
-        ):
-            effect = QGraphicsOpacityEffect(
-                page
-            )
-
-            effect.setOpacity(
-                1.0
-            )
-
-            page.setGraphicsEffect(
-                effect
-            )
-
-            self.page_effects[page] = effect
-
         buttons = [
             ("Dashboard", 0),
             ("Logbook", 1),
@@ -468,6 +431,14 @@ class MainWindow(QMainWindow):
             ("Map", 5),
             ("Performance", 6),
         ]
+
+        navigation_group = QButtonGroup(
+            self
+        )
+
+        navigation_group.setExclusive(
+            True
+        )
 
         for text, index in buttons:
 
@@ -483,6 +454,15 @@ class MainWindow(QMainWindow):
                 Qt.PointingHandCursor
             )
 
+            button.setCheckable(
+                True
+            )
+
+            navigation_group.addButton(
+                button,
+                index,
+            )
+
             button.clicked.connect(
                 lambda checked=False,
                 i=index: self.switch_page(i)
@@ -491,6 +471,11 @@ class MainWindow(QMainWindow):
             sidebar_layout.addWidget(
                 button
             )
+
+            if index == 0:
+                button.setChecked(
+                    True
+                )
 
         sidebar_layout.addStretch()
 
@@ -612,101 +597,15 @@ class MainWindow(QMainWindow):
         self,
         index,
     ):
-        """Switch pages with a short fade-in transition."""
+        """Switch pages immediately without a transition effect."""
 
-        current_index = self.pages.currentIndex()
-
-        if index == current_index:
+        if index == self.pages.currentIndex():
             return
-
-        current_page = self.pages.widget(
-            current_index
-        )
-
-        target_page = self.pages.widget(
-            index
-        )
-
-        # -------------------------------------------------
-        # MAP PAGE
-        # -------------------------------------------------
-        #
-        # QWebEngineView uses a native composited rendering
-        # surface. Do not combine it with page opacity
-        # transitions in either direction.
-        #
-        # This means:
-        #
-        #   Map -> normal page   = immediate switch
-        #   normal page -> Map   = immediate switch
-        #
-        # Normal Qt pages retain the fade transition below.
-        # -------------------------------------------------
-
-        if (
-            current_page is self.map_page
-            or target_page is self.map_page
-            or current_page is self.fuel_page
-            or target_page is self.fuel_page
-        ):
-            if hasattr(
-                self,
-                "_page_effect_animation",
-            ):
-                self._page_effect_animation.stop()
-
-            self.pages.setCurrentIndex(
-                index
-            )
-
-            return
-
-        effect = self.page_effects.get(
-            target_page
-        )
 
         self.pages.setCurrentIndex(
             index
         )
 
-        if effect is None:
-            return
-
-        if hasattr(
-            self,
-            "_page_effect_animation",
-        ):
-            self._page_effect_animation.stop()
-
-        self._page_effect_animation = (
-            QPropertyAnimation(
-                effect,
-                b"opacity",
-                self,
-            )
-        )
-
-        self._page_effect_animation.setDuration(
-            180
-        )
-
-        self._page_effect_animation.setEasingCurve(
-            QEasingCurve.OutCubic
-        )
-
-        effect.setOpacity(
-            0.0
-        )
-
-        self._page_effect_animation.setStartValue(
-            0.0
-        )
-
-        self._page_effect_animation.setEndValue(
-            1.0
-        )
-
-        self._page_effect_animation.start()
 
     # =====================================================
     # DATA LOADING

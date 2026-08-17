@@ -50,6 +50,19 @@ def apply_style(app):
             background: #374151;
         }
 
+        #navigationButton:checked {
+            background: #1f2937;
+            color: white;
+            font-weight: 600;
+            border-left: 3px solid #f9fafb;
+            padding-left: 12px;
+        }
+
+        #navigationButton:checked:hover {
+            background: #273449;
+            color: white;
+        }
+
         #content {
             background: #f4f6f8;
         }
@@ -682,8 +695,14 @@ def apply_style(app):
             }
 
             #navigationButton:hover,
-            #navigationButton:pressed {
+            #navigationButton:pressed,
+            #navigationButton:checked {
                 color: #ffffff;
+            }
+
+            #navigationButton:checked {
+                background: #1f2937;
+                border-left-color: #f9fafb;
             }
 
             /* ---------------------------------------------
