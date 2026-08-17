@@ -23,4 +23,87 @@ jobs:
             runner: macos-15-intel
 
     steps:
-      - name: Check out
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Build application
+        run: python -m PyInstaller --clean --noconfirm FlightStats.spec
+
+      - name: Verify application architecture
+        run: |
+          test -f dist/FlightStats.app/Contents/MacOS/FlightStats
+          file dist/FlightStats.app/Contents/MacOS/FlightStats
+
+      - name: Package application
+        run: |
+          mkdir -p release
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/FlightStats.app \
+            "release/FlightStats-macOS-${{ matrix.arch }}.zip"
+          ls -lh release/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlightStats-macOS-${{ matrix.arch }}
+          path: release/FlightStats-macOS-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish latest release
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: release
+          pattern: FlightStats-macOS-*
+          merge-multiple: true
+
+      - name: Verify release assets
+        run: |
+          ls -lh release/
+          test -f release/FlightStats-macOS-arm64.zip
+          test -f release/FlightStats-macOS-x86_64.zip
+
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view latest --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit latest \
+              --repo "${{ github.repository }}" \
+              --title "FlightStats Latest" \
+              --notes "Latest successful macOS build from main. Commit: ${{ github.sha }}" \
+              --target "${{ github.sha }}"
+          else
+            gh release create latest \
+              --repo "${{ github.repository }}" \
+              --title "FlightStats Latest" \
+              --notes "Latest successful macOS build from main. Commit: ${{ github.sha }}" \
+              --target "${{ github.sha }}"
+          fi
+
+          gh release upload latest \
+            --repo "${{ github.repository }}" \
+            --clobber \
+            release/FlightStats-macOS-arm64.zip \
+            release/FlightStats-macOS-x86_64.zip
