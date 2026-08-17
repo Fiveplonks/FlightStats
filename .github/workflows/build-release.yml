@@ -82,21 +82,15 @@ jobs:
       # Windows verification and packaging
       # ---------------------------------------------------
 
-      - name: Inspect Windows build output
+      - name: Verify Windows application
         if: matrix.platform == 'Windows'
         shell: powershell
         run: |
-          Write-Host "=== DIST DIRECTORY ==="
-          Get-ChildItem -Path dist -Recurse |
-            Select-Object FullName, Length
+          if (-not (Test-Path "dist\FlightStats.exe")) {
+              throw "FlightStats.exe was not found"
+          }
 
-          Write-Host "=== EXECUTABLES ==="
-          Get-ChildItem -Path dist -Recurse -Filter *.exe |
-            Select-Object FullName, Length
-
-          Write-Host "=== ICONS ==="
-          Get-ChildItem -Path dist -Recurse -Filter *.ico |
-            Select-Object FullName, Length
+          Get-Item "dist\FlightStats.exe"
 
       - name: Package Windows application
         if: matrix.platform == 'Windows'
@@ -105,11 +99,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path release | Out-Null
 
           Compress-Archive `
-            -Path "dist\FlightStats\*" `
+            -Path "dist\*" `
             -DestinationPath "release\FlightStats-Windows-x86_64.zip" `
             -CompressionLevel Optimal
 
-          Get-ChildItem release
+          Get-Item "release\FlightStats-Windows-x86_64.zip"
 
       # ---------------------------------------------------
       # Upload platform build artifact
