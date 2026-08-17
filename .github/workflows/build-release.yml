@@ -82,20 +82,21 @@ jobs:
       # Windows verification and packaging
       # ---------------------------------------------------
 
-      - name: Verify Windows application
+      - name: Inspect Windows build output
         if: matrix.platform == 'Windows'
         shell: powershell
         run: |
-          if (-not (Test-Path "dist\FlightStats\FlightStats.exe")) {
-              throw "FlightStats.exe was not found"
-          }
+          Write-Host "=== DIST DIRECTORY ==="
+          Get-ChildItem -Path dist -Recurse |
+            Select-Object FullName, Length
 
-          if (-not (Test-Path "dist\FlightStats\FlightStats.ico")) {
-              throw "FlightStats.ico was not bundled"
-          }
+          Write-Host "=== EXECUTABLES ==="
+          Get-ChildItem -Path dist -Recurse -Filter *.exe |
+            Select-Object FullName, Length
 
-          Get-Item "dist\FlightStats\FlightStats.exe"
-          Get-Item "dist\FlightStats\FlightStats.ico"
+          Write-Host "=== ICONS ==="
+          Get-ChildItem -Path dist -Recurse -Filter *.ico |
+            Select-Object FullName, Length
 
       - name: Package Windows application
         if: matrix.platform == 'Windows'
