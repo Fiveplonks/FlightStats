@@ -273,7 +273,6 @@ class MapPage(QWidget):
         self.map.cumulative_airports = {}
 
         self.update_month_label()
-        self.update_cumulative_routes()
         self.update_map()
 
     def filters_changed(self):
@@ -288,7 +287,6 @@ class MapPage(QWidget):
         self.map.cumulative_airports = {}
 
         self.update_month_label()
-        self.update_cumulative_routes()
         self.update_map()
 
     def selected_calendar_year(self):
@@ -325,7 +323,6 @@ class MapPage(QWidget):
             self.map.reset_animation()
 
         self.update_month_label()
-        self.update_cumulative_routes()
         self.update_map()
 
     def previous_month(self):
@@ -426,10 +423,14 @@ class MapPage(QWidget):
         )
 
     def update_map(self):
-        """Display flights belonging to the selected month."""
+        """Display current and cumulative flights in one map update."""
 
         if self.data is None:
-            self.map.set_flights([], self.database)
+            self.map.set_map_data(
+                [],
+                [],
+                self.database,
+            )
             self.flight_count_label.setText("0 flights")
             return
 
@@ -438,12 +439,10 @@ class MapPage(QWidget):
         selected_month = self.month_slider.value() + 1
 
         flights = []
+        cumulative_flights = []
 
         for flight in self.data.flights:
             if flight.date.year != selected_year:
-                continue
-
-            if flight.date.month != selected_month:
                 continue
 
             aircraft = FuelDatabase.normalize_type(
@@ -456,14 +455,18 @@ class MapPage(QWidget):
             ):
                 continue
 
-            flights.append(flight)
+            if flight.date.month == selected_month:
+                flights.append(flight)
 
-        self.map.set_flights(
+            elif flight.date.month < selected_month:
+                cumulative_flights.append(flight)
+
+        self.map.set_map_data(
             flights,
+            cumulative_flights,
             self.database,
         )
 
         self.flight_count_label.setText(
             f"{len(flights):,} flights"
         )
-
