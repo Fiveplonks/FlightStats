@@ -75,7 +75,6 @@ from gui_discrepancy_dialog import show_discrepancies
 from gui_style import apply_style
 from parser.airports import AirportDatabase
 from parser.fuel import FuelDatabase
-from parser.fuel_analysis import calculate_all_fuel, summarize_fuel
 
 
 LOGBOOK = get_logbook_path()
@@ -879,22 +878,7 @@ class MainWindow(QMainWindow):
         # RECALCULATE FUEL
         # -------------------------------------------------
 
-        database = FuelDatabase()
-
-        self.data.fuel_database = database
-
-        self.data.fuel_results = (
-            calculate_all_fuel(
-                self.data.flights,
-                database,
-            )
-        )
-
-        self.data.fuel_summary = (
-            summarize_fuel(
-                self.data.fuel_results
-            )
-        )
+        self.data.refresh_fuel()
 
         return True
 

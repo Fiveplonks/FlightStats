@@ -454,6 +454,20 @@ class FlightStatsData:
 
         self.load()
 
+    def refresh_fuel(self):
+        """Recalculate fuel results using the current fuel database."""
+
+        self.fuel_database = FuelDatabase()
+
+        self.fuel_results = calculate_all_fuel(
+            self.flights,
+            self.fuel_database,
+        )
+
+        self.fuel_summary = summarize_fuel(
+            self.fuel_results,
+        )
+
     def report_discrepancy(
         self,
         discrepancy,
