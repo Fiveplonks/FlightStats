@@ -45,6 +45,9 @@ class MetricCard(QFrame):
 
         self.unit_label = QLabel(unit or "")
         self.unit_label.setObjectName("cardUnitLabel")
+        self.unit_label.setStyleSheet(
+            "color: #94a3b8; font-size: 11px; font-weight: 500;"
+        )
         self.unit_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.unit_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.unit_label.setVisible(bool(unit))
