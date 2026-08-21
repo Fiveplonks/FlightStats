@@ -37,6 +37,21 @@ class FlightTimeChart(QWidget):
     def clear(self):
         self.set_points([])
 
+    @staticmethod
+    def _y_axis_step(total_hours):
+        """Choose a useful round-hour grid spacing for the selected range.
+
+        The target is roughly 5–8 intervals. Smaller cumulative totals therefore
+        automatically receive finer labels instead of retaining a fixed 500-hour
+        spacing and leaving most of the chart empty.
+        """
+        nice_steps = (50, 100, 250, 500, 1000, 2000, 5000, 10000)
+        target_step = max(total_hours / 6, 50)
+        for step in nice_steps:
+            if step >= target_step:
+                return step
+        return nice_steps[-1]
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -52,10 +67,11 @@ class FlightTimeChart(QWidget):
         total = max(values)
         span = max(total, 1)
 
-        # Use familiar 500-hour increments on the Y-axis. The selected
-        # range's exact cumulative total is shown only at the top.
+        # Use a dynamic, round-hour interval. The selected range's exact
+        # cumulative total is shown only at the top of the axis.
         total_hours = total / 60
-        tick_hours = list(range(0, int(total_hours) + 1, 500))
+        step_hours = self._y_axis_step(total_hours)
+        tick_hours = list(range(0, int(total_hours // step_hours) * int(step_hours) + 1, int(step_hours)))
         if not tick_hours:
             tick_hours = [0]
         if tick_hours[-1] * 60 != total:
