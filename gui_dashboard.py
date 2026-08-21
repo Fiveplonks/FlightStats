@@ -19,11 +19,7 @@ from PySide6.QtWidgets import (
 from gui_components import LogbookDropZone, MetricCard
 from gui_flight_time_chart import FlightTimeChart, annual_cumulative_flight_time
 from gui_unit_dialog import UnitSettingsDialog
-from gui_units import (
-    UnitSettings,
-    convert_distance_km,
-    convert_fuel_flow,
-)
+from gui_units import UnitSettings, convert_distance_km, convert_fuel_flow
 from gui_utils import format_hours
 
 
@@ -44,7 +40,6 @@ class DashboardPage(QWidget):
 
         header = QHBoxLayout()
         title_layout = QVBoxLayout()
-
         title = QLabel("Dashboard")
         title.setObjectName("pageTitle")
         subtitle = QLabel("FlightStats overview")
@@ -85,7 +80,6 @@ class DashboardPage(QWidget):
         loading_layout = QVBoxLayout(self.loading_frame)
         loading_layout.setContentsMargins(0, 5, 0, 5)
         loading_layout.setSpacing(6)
-
         self.status_label = QLabel("Ready")
         self.status_label.setObjectName("statusLabel")
         self.progress_bar = QProgressBar()
@@ -100,7 +94,6 @@ class DashboardPage(QWidget):
 
         cards_layout = QGridLayout()
         cards_layout.setSpacing(15)
-
         self.flights_card = MetricCard("Flights")
         self.time_card = MetricCard("Calculated flight time")
         self.previous_experience_card = MetricCard("Previous experience")
@@ -131,15 +124,12 @@ class DashboardPage(QWidget):
         graph_layout = QVBoxLayout(graph_frame)
         graph_layout.setContentsMargins(18, 14, 18, 14)
         graph_layout.setSpacing(8)
-
         graph_title = QLabel("Total flying hours")
         graph_title.setObjectName("careerStatsTitle")
         graph_layout.addWidget(graph_title)
-
         graph_subtitle = QLabel("Cumulative logbook flight time by year")
         graph_subtitle.setObjectName("pageSubtitle")
         graph_layout.addWidget(graph_subtitle)
-
         self.flight_time_chart = FlightTimeChart(export_title="FlightStats Total Flying Hours")
         graph_layout.addWidget(self.flight_time_chart)
         self.graph_frame = graph_frame
@@ -172,28 +162,16 @@ class DashboardPage(QWidget):
     def show_logbook_selector(self, message=None):
         self.logbook_drop_zone.show()
         self.logbook_status_label.show()
-        self.logbook_status_label.setText(
-            message or "No logbook selected. Choose your flight logbook PDF to begin."
-        )
+        self.logbook_status_label.setText(message or "No logbook selected. Choose your flight logbook PDF to begin.")
         self.loading_frame.hide()
-        for widget in (
-            self.flights_card, self.time_card, self.previous_experience_card,
-            self.validated_logbook_card, self.total_experience_card,
-            self.distance_card, self.jet_fuel_card, self.piston_fuel_card,
-            self.airports_card, self.graph_frame, self.year_tabs,
-        ):
+        for widget in (self.flights_card, self.time_card, self.previous_experience_card, self.validated_logbook_card, self.total_experience_card, self.distance_card, self.jet_fuel_card, self.piston_fuel_card, self.airports_card, self.graph_frame, self.year_tabs):
             widget.hide()
 
     def show_loading(self):
         self.logbook_drop_zone.hide()
         self.logbook_status_label.hide()
         self.loading_frame.show()
-        for widget in (
-            self.flights_card, self.time_card, self.previous_experience_card,
-            self.total_experience_card, self.distance_card, self.jet_fuel_card,
-            self.piston_fuel_card, self.airports_card, self.graph_frame,
-            self.year_tabs,
-        ):
+        for widget in (self.flights_card, self.time_card, self.previous_experience_card, self.total_experience_card, self.distance_card, self.jet_fuel_card, self.piston_fuel_card, self.airports_card, self.graph_frame, self.year_tabs):
             widget.hide()
 
     def show_statistics(self, logbook_path):
@@ -201,12 +179,7 @@ class DashboardPage(QWidget):
         self.logbook_status_label.show()
         self.logbook_status_label.setText(f"Current logbook: {Path(logbook_path).name}")
         self.loading_frame.hide()
-        for widget in (
-            self.flights_card, self.time_card, self.previous_experience_card,
-            self.total_experience_card, self.distance_card, self.jet_fuel_card,
-            self.piston_fuel_card, self.airports_card, self.graph_frame,
-            self.year_tabs,
-        ):
+        for widget in (self.flights_card, self.time_card, self.previous_experience_card, self.total_experience_card, self.distance_card, self.jet_fuel_card, self.piston_fuel_card, self.airports_card, self.graph_frame, self.year_tabs):
             widget.show()
 
     def set_data(self, data, logbook_path=None):
@@ -216,9 +189,7 @@ class DashboardPage(QWidget):
         self.build_year_tabs()
 
     def update_flight_time_chart(self, flights, through_year=None):
-        self.flight_time_chart.set_points(
-            annual_cumulative_flight_time(flights, through_year)
-        )
+        self.flight_time_chart.set_points(annual_cumulative_flight_time(flights, through_year))
 
     def build_year_tabs(self):
         self.year_tabs.blockSignals(True)
@@ -237,21 +208,11 @@ class DashboardPage(QWidget):
         self.update_for_year(self._year_from_index(index))
 
     def update_for_year(self, year):
-        flights = [
-            flight for flight in self._data.flights
-            if year is None or flight.date.year == year
-        ]
-        indexes = [
-            index for index, flight in enumerate(self._data.flights)
-            if year is None or flight.date.year == year
-        ]
+        flights = [flight for flight in self._data.flights if year is None or flight.date.year == year]
+        indexes = [index for index, flight in enumerate(self._data.flights) if year is None or flight.date.year == year]
 
         total_minutes = sum(flight.flight_minutes or 0 for flight in flights)
-        validated_logged_minutes = sum(
-            flight.logged_flight_minutes or 0
-            for flight in flights
-            if flight.logged_time_status == "valid"
-        )
+        validated_logged_minutes = sum(flight.logged_flight_minutes or 0 for flight in flights if flight.logged_time_status == "valid")
 
         total_distance = 0.0
         jet_fuel = 0.0
@@ -287,23 +248,27 @@ class DashboardPage(QWidget):
         self.total_experience_card.set_value(format_hours(total_minutes + previous_experience))
 
         distance_value = convert_distance_km(total_distance, self.units.distance_unit)
-        self.distance_card.set_value(
-            f"{distance_value:,.1f}" if distance_value is not None else "—"
-        )
+        self.distance_card.set_value(f"{distance_value:,.1f}" if distance_value is not None else "—")
         self.distance_card.set_unit(self.units.distance_unit)
 
-        jet_fuel_value = convert_fuel_flow(jet_fuel, "kg/h", self.units.fuel_unit)
-        piston_fuel_value = convert_fuel_flow(piston_fuel, "L/h", self.units.fuel_unit)
+        # Jet fuel may be displayed as kg, L, or US gal.
+        # Avgas is measured in L or US gal; it is never converted to kg.
         fuel_display_units = {"kg/h": "kg", "L/h": "L", "USG/h": "US gal"}
-        display_fuel_unit = fuel_display_units[self.units.fuel_unit]
-        self.jet_fuel_card.set_value(
-            f"{jet_fuel_value:,.1f}" if jet_fuel_value is not None else "—"
-        )
-        self.jet_fuel_card.set_unit(display_fuel_unit)
-        self.piston_fuel_card.set_value(
-            f"{piston_fuel_value:,.1f}" if piston_fuel_value is not None else "—"
-        )
-        self.piston_fuel_card.set_unit(display_fuel_unit)
+
+        jet_fuel_value = convert_fuel_flow(jet_fuel, "kg/h", self.units.fuel_unit)
+        self.jet_fuel_card.set_value(f"{jet_fuel_value:,.1f}" if jet_fuel_value is not None else "—")
+        self.jet_fuel_card.set_unit(fuel_display_units[self.units.fuel_unit])
+
+        if self.units.fuel_unit == "kg/h":
+            # kg/h is valid for jet fuel only. Keep Avgas in its native litres.
+            avgas_value = piston_fuel
+            avgas_display_unit = "L"
+        else:
+            avgas_value = convert_fuel_flow(piston_fuel, "L/h", self.units.fuel_unit)
+            avgas_display_unit = fuel_display_units[self.units.fuel_unit]
+
+        self.piston_fuel_card.set_value(f"{avgas_value:,.1f}" if avgas_value is not None else "—")
+        self.piston_fuel_card.set_unit(avgas_display_unit)
         self.airports_card.set_value(f"{len(airports):,}")
 
         # Year selection is a cumulative cutoff for the career-time graph.
