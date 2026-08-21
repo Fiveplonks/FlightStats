@@ -157,10 +157,6 @@ class DashboardPage(QWidget):
             if self._data is not None:
                 current = self.year_tabs.currentIndex()
                 self.update_for_year(self._year_from_index(current))
-                self.update_flight_time_chart(
-                    self._data.flights,
-                    self._year_from_index(current),
-                )
             self.units_changed.emit()
 
     def _year_from_index(self, index):
@@ -213,7 +209,6 @@ class DashboardPage(QWidget):
         self._data = data
         if logbook_path is not None:
             self.show_statistics(logbook_path)
-        self.update_flight_time_chart(data.flights)
         self.build_year_tabs()
 
     def update_flight_time_chart(self, flights, through_year=None):
@@ -231,14 +226,11 @@ class DashboardPage(QWidget):
         self.year_tabs.blockSignals(False)
         self.year_tabs.setCurrentIndex(0)
         self.update_for_year(None)
-        self.update_flight_time_chart(self._data.flights, None)
 
     def year_tab_changed(self, index):
         if index < 0:
             return
-        year = self._year_from_index(index)
-        self.update_for_year(year)
-        self.update_flight_time_chart(self._data.flights, year)
+        self.update_for_year(self._year_from_index(index))
 
     def update_for_year(self, year):
         flights = [
@@ -293,3 +285,6 @@ class DashboardPage(QWidget):
         self.jet_fuel_card.set_value(format_fuel_quantity(jet_fuel, "kg/h", self.units.fuel_unit))
         self.piston_fuel_card.set_value(format_fuel_quantity(piston_fuel, "L/h", self.units.fuel_unit))
         self.airports_card.set_value(f"{len(airports):,}")
+
+        # Year selection is a cumulative cutoff for the career-time graph.
+        self.update_flight_time_chart(self._data.flights, through_year=year)
