@@ -126,14 +126,17 @@ class LogbookPage(QWidget):
         self.aircraft_filter.currentTextChanged.connect(self.apply_filters)
         self.start_date.dateChanged.connect(self.apply_filters)
         self.end_date.dateChanged.connect(self.apply_filters)
-        self.analysis_metric.currentTextChanged.connect(self.update_analysis)
+        # currentTextChanged emits the new text, not a list of flights.
+        # Pass no explicit flight list so update_analysis() recalculates from
+        # the currently active filters.
+        self.analysis_metric.currentTextChanged.connect(
+            lambda _text: self.update_analysis()
+        )
 
     def showEvent(self, event):
         """Refresh presentation units without rebuilding the 1500+ row table."""
         self.units.load()
         super().showEvent(event)
-        # set_data() already builds the table. Rebuilding it every time the
-        # page becomes visible makes navigation unnecessarily expensive.
 
     def set_data(self, data):
         self.data = data
@@ -197,8 +200,14 @@ class LogbookPage(QWidget):
             maximum = max(all_dates)
             start = max(date(self.selected_year, 1, 1), minimum)
             end = min(date(self.selected_year, 12, 31), maximum)
-            self.start_date.setDate(QDate(start.year, start.month, start.day))
-            self.end_date.setDate(QDate(end.year, end.month, end.day))
+            self.start_date.blockSignals(True)
+            self.end_date.blockSignals(True)
+            try:
+                self.start_date.setDate(QDate(start.year, start.month, start.day))
+                self.end_date.setDate(QDate(end.year, end.month, end.day))
+            finally:
+                self.start_date.blockSignals(False)
+                self.end_date.blockSignals(False)
         else:
             self._set_date_bounds()
         self.apply_filters()
