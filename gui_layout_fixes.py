@@ -1,6 +1,6 @@
 """Runtime layout safeguards for the cross-platform FlightStats dashboard."""
 
-from PySide6.QtCore import QTimer, QSize, Slot
+from PySide6.QtCore import QTimer, QSize
 from PySide6.QtWidgets import QSizePolicy, QApplication
 
 
@@ -71,17 +71,6 @@ def apply_dashboard_layout_fixes():
     DashboardPage._layout_fixes_applied = True
 
     original_main_window_init = MainWindow.__init__
-    original_data_loaded = MainWindow.data_loaded
-
-    @Slot(object)
-    def patched_data_loaded(self, data):
-        """Handle loader completion on the GUI/main thread."""
-        original_data_loaded(self, data)
-
-        available = getattr(self, "_startup_available_geometry", None)
-        if available is not None:
-            self.setGeometry(available)
-            self.setMaximumSize(available.size())
 
     def patched_main_window_init(self):
         original_main_window_init(self)
@@ -103,10 +92,12 @@ def apply_dashboard_layout_fixes():
         self.pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.centralWidget().setMinimumSize(0, 0)
 
-        # Keep the normal window inside the usable screen rectangle while the
-        # asynchronous logbook load changes the Dashboard's visible content.
-        # The loader completion slot is explicitly registered with Qt so all
-        # widget creation/population happens on the GUI thread.
+        # Keep the normal window inside the usable screen rectangle. The
+        # original MainWindow data_loaded method is intentionally NOT replaced
+        # here: PySide6 uses the original QObject method metadata when routing
+        # the worker's finished signal back to the GUI thread. Replacing it
+        # dynamically turns it into a plain Python callable and can cause
+        # QWidget creation to happen on the worker thread on macOS.
         screen = QApplication.primaryScreen()
         self._startup_available_geometry = (
             screen.availableGeometry() if screen is not None else None
@@ -122,5 +113,4 @@ def apply_dashboard_layout_fixes():
             )
 
     MainWindow.__init__ = patched_main_window_init
-    MainWindow.data_loaded = patched_data_loaded
     MainWindow._layout_fixes_applied = True
