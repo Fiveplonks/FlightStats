@@ -1,5 +1,6 @@
 """Logbook page for FlightStats."""
 
+from calendar import monthrange
 from datetime import date
 
 from PySide6.QtCore import QDate
@@ -33,6 +34,7 @@ class LogbookPage(QWidget):
         self.selected_year = None
         self.database = FuelDatabase()
         self.units = UnitSettings()
+        self._table_populated = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 35, 40, 35)
@@ -113,9 +115,11 @@ class LogbookPage(QWidget):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
-        header.setStretchLastSection(True)
-        for column in range(9):
-            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        header.setStretchLastSection(False)
+        widths = (95, 85, 60, 85, 60, 105, 105, 90, 110, 110)
+        for column, width in enumerate(widths):
+            header.setSectionResizeMode(column, QHeaderView.Fixed)
+            header.resizeSection(column, width)
         layout.addWidget(self.table, 1)
 
         self.search_box.textChanged.connect(self.apply_filters)
@@ -125,15 +129,16 @@ class LogbookPage(QWidget):
         self.analysis_metric.currentTextChanged.connect(self.update_analysis)
 
     def showEvent(self, event):
-        """Refresh presentation units whenever the page becomes visible."""
+        """Refresh presentation units without rebuilding the 1500+ row table."""
         self.units.load()
         super().showEvent(event)
-        if self.data is not None:
-            self.apply_filters()
+        # set_data() already builds the table. Rebuilding it every time the
+        # page becomes visible makes navigation unnecessarily expensive.
 
     def set_data(self, data):
         self.data = data
         self.units.load()
+        self._table_populated = False
 
         self.aircraft_filter.blockSignals(True)
         self.aircraft_filter.clear()
@@ -260,7 +265,6 @@ class LogbookPage(QWidget):
         if not monthly:
             return []
 
-        from calendar import monthrange
         return [
             (date(year, month, monthrange(year, month)[1]), minutes)
             for (year, month), minutes in sorted(monthly.items())
@@ -268,52 +272,58 @@ class LogbookPage(QWidget):
 
     def populate_table(self, matches):
         self.table.setSortingEnabled(False)
-        self.table.setRowCount(len(matches))
+        self.table.setUpdatesEnabled(False)
+        try:
+            self.table.clearContents()
+            self.table.setRowCount(len(matches))
 
-        for row, (original_index, flight) in enumerate(matches):
-            distance = self.data.flight_distances[original_index]["distance_km"]
-            fuel_result = self.data.fuel_results[original_index]
-            fuel = fuel_result.get("fuel")
-            fuel_unit = fuel_result.get("unit")
+            for row, (original_index, flight) in enumerate(matches):
+                distance_result = self.data.flight_distances[original_index]
+                distance = distance_result.get("distance_km") if isinstance(distance_result, dict) else None
+                fuel_result = self.data.fuel_results[original_index]
+                fuel = fuel_result.get("fuel") if isinstance(fuel_result, dict) else None
+                fuel_unit = fuel_result.get("unit") if isinstance(fuel_result, dict) else None
 
-            self.set_item(row, 0, flight.date.strftime("%d-%m-%Y"), flight.date)
-            self.set_item(row, 1, flight.departure)
+                self.set_item(row, 0, flight.date.strftime("%d-%m-%Y"), flight.date)
+                self.set_item(row, 1, flight.departure)
 
-            departure_time = flight.departure_time
-            departure_sort = (
-                departure_time.hour * 60 + departure_time.minute
-                if departure_time else None
-            )
-            self.set_item(
-                row, 2,
-                departure_time.strftime("%H:%M") if departure_time else "—",
-                departure_sort,
-            )
+                departure_time = flight.departure_time
+                departure_sort = (
+                    departure_time.hour * 60 + departure_time.minute
+                    if departure_time else None
+                )
+                self.set_item(
+                    row, 2,
+                    departure_time.strftime("%H:%M") if departure_time else "—",
+                    departure_sort,
+                )
 
-            self.set_item(row, 3, flight.arrival)
-            arrival_time = flight.arrival_time
-            arrival_sort = (
-                arrival_time.hour * 60 + arrival_time.minute
-                if arrival_time else None
-            )
-            self.set_item(
-                row, 4,
-                arrival_time.strftime("%H:%M") if arrival_time else "—",
-                arrival_sort,
-            )
+                self.set_item(row, 3, flight.arrival)
+                arrival_time = flight.arrival_time
+                arrival_sort = (
+                    arrival_time.hour * 60 + arrival_time.minute
+                    if arrival_time else None
+                )
+                self.set_item(
+                    row, 4,
+                    arrival_time.strftime("%H:%M") if arrival_time else "—",
+                    arrival_sort,
+                )
 
-            aircraft = self.database.normalize_type(flight.aircraft)
-            self.set_item(row, 5, aircraft)
-            self.set_item(row, 6, flight.registration)
-            self.set_item(row, 7, format_hours(flight.flight_minutes), flight.flight_minutes)
-            self.set_item(row, 8, format_distance(distance, self.units.distance_unit), distance)
-            self.set_item(
-                row, 9,
-                format_fuel_quantity(fuel, fuel_unit, self.units.fuel_unit),
-                fuel,
-            )
-
-        self.table.setSortingEnabled(True)
+                aircraft = self.database.normalize_type(flight.aircraft)
+                self.set_item(row, 5, aircraft)
+                self.set_item(row, 6, flight.registration)
+                self.set_item(row, 7, format_hours(flight.flight_minutes), flight.flight_minutes)
+                self.set_item(row, 8, format_distance(distance, self.units.distance_unit), distance)
+                self.set_item(
+                    row, 9,
+                    format_fuel_quantity(fuel, fuel_unit, self.units.fuel_unit),
+                    fuel,
+                )
+        finally:
+            self.table.setUpdatesEnabled(True)
+            self.table.setSortingEnabled(True)
+        self._table_populated = True
 
     def set_item(self, row, column, text, sort_value=None):
         item = SortableTableWidgetItem(str(text), sort_value)
