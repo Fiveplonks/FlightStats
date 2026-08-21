@@ -17,11 +17,15 @@ class FlightTimeChart(QWidget):
         super().__init__(parent)
         self.points = []
         self.export_title = export_title
-        self.setMinimumHeight(260)
+        self.setMinimumHeight(220)
+        self.setSizePolicy(
+            self.sizePolicy().horizontalPolicy(),
+            self.sizePolicy().verticalPolicy(),
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         self.export_button = QPushButton("Export graph as image")
         self.export_button.setObjectName("refreshButton")
@@ -47,7 +51,9 @@ class FlightTimeChart(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, "No flight-time data available")
             return
 
-        rect = self.rect().adjusted(58, 18, -18, -36)
+        # Leave a dedicated strip at the top for the export button so that
+        # chart labels and the button can never overlap.
+        rect = self.rect().adjusted(58, 38, -18, -36)
         values = [point[1] for point in self.points]
         maximum = max(values)
         minimum = min(0, min(values))
@@ -115,7 +121,7 @@ class FlightTimeChart(QWidget):
             )
 
         painter.drawText(
-            QRectF(rect.left(), 0, rect.width(), 20),
+            QRectF(rect.left(), 18, rect.width(), 20),
             Qt.AlignLeft | Qt.AlignVCenter,
             f"{format_hours(values[-1])} total",
         )
