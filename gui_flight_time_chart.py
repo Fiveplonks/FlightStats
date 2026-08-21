@@ -47,8 +47,6 @@ class FlightTimeChart(QWidget):
             painter.drawText(self.rect(), Qt.AlignCenter, "No flight-time data available")
             return
 
-        # Leave a dedicated strip at the top for the export button so that
-        # chart labels and the button can never overlap.
         rect = self.rect().adjusted(58, 38, -18, -36)
         values = [point[1] for point in self.points]
         maximum = max(values)
@@ -65,8 +63,6 @@ class FlightTimeChart(QWidget):
         font.setPointSize(9)
         painter.setFont(font)
 
-        # The chart's y coordinate increases downward, so the largest
-        # cumulative value belongs at the top of the graph.
         for index in range(5):
             ratio = index / 4
             y = rect.bottom() - ratio * rect.height()
@@ -113,7 +109,7 @@ class FlightTimeChart(QWidget):
                 continue
             x = x_values[index]
             painter.drawText(
-                QRectF(x - 42, rect.bottom() + 8, 84, 24),
+                QRectF(x - 30, rect.bottom() + 8, 60, 24),
                 Qt.AlignHCenter | Qt.AlignTop,
                 label,
             )
@@ -125,15 +121,16 @@ class FlightTimeChart(QWidget):
         )
 
     def _x_labels(self):
+        """Return sparse year labels for the annual dashboard series."""
         if not self.points:
             return []
         count = len(self.points)
-        target = 7
+        target = 8
         step = max(1, (count - 1) // (target - 1))
         labels = [None] * count
         for index, (point_date, _) in enumerate(self.points):
             if index == 0 or index == count - 1 or index % step == 0:
-                labels[index] = point_date.strftime("%b %Y")
+                labels[index] = point_date.strftime("%Y")
         return labels
 
     def export_image(self):
@@ -182,5 +179,36 @@ def monthly_cumulative_flight_time(flights):
             month = 1
         else:
             month += 1
+
+    return points
+
+
+def annual_cumulative_flight_time(flights, through_year=None):
+    """Return one cumulative flight-time point per calendar year.
+
+    If ``through_year`` is supplied, the series stops at that year while
+    retaining all preceding years.
+    """
+    annual = {}
+
+    for flight in flights:
+        if flight.date is None or not flight.flight_minutes:
+            continue
+        year = flight.date.year
+        if through_year is not None and year > through_year:
+            continue
+        annual[year] = annual.get(year, 0) + flight.flight_minutes
+
+    if not annual:
+        return []
+
+    first_year = min(annual)
+    last_year = max(annual)
+    points = []
+    cumulative = 0
+
+    for year in range(first_year, last_year + 1):
+        cumulative += annual.get(year, 0)
+        points.append((date(year, 12, 31), cumulative))
 
     return points
