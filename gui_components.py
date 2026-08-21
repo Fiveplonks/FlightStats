@@ -26,23 +26,30 @@ class MetricCard(QFrame):
         ":.,-/"
     )
 
-    def __init__(self, title, value="—"):
+    def __init__(self, title, value="—", unit=None):
         super().__init__()
         self.setObjectName("card")
 
         layout = QVBoxLayout(self)
-        # Keep enough room for the title plus the complete 44 px flap board,
-        # while leaving the card responsive when the window is made shorter.
         layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(4)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(6)
+
         self.title_label = QLabel(title)
         self.title_label.setObjectName("cardLabel")
-        self.title_label.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed,
-        )
-        layout.addWidget(self.title_label)
+        self.title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        title_row.addWidget(self.title_label)
+
+        self.unit_label = QLabel(unit or "")
+        self.unit_label.setObjectName("cardUnitLabel")
+        self.unit_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.unit_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.unit_label.setVisible(bool(unit))
+        title_row.addWidget(self.unit_label)
+        layout.addLayout(title_row)
 
         self.flap_container = QFrame()
         self.flap_container.setObjectName("flapBoard")
@@ -54,10 +61,7 @@ class MetricCard(QFrame):
             }
             """
         )
-        self.flap_container.setSizePolicy(
-            QSizePolicy.Maximum,
-            QSizePolicy.Fixed,
-        )
+        self.flap_container.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.flap_container.setFixedHeight(44)
 
         self.flap_layout = QHBoxLayout(self.flap_container)
@@ -77,6 +81,11 @@ class MetricCard(QFrame):
         self._flap_tick = 0
         self._flap_settle_ticks = []
         self._create_flaps(self._flap_target)
+
+    def set_unit(self, unit):
+        """Set the small unit label displayed outside the split-flap board."""
+        self.unit_label.setText(unit or "")
+        self.unit_label.setVisible(bool(unit))
 
     def _create_flaps(self, value):
         while self.flap_layout.count():
