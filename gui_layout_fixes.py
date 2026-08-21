@@ -101,7 +101,20 @@ def apply_dashboard_layout_fixes():
         if self._startup_available_geometry is not None:
             available = self._startup_available_geometry
             self.setGeometry(available)
-            self.setMaximumSize(available.size())
+
+            # The Qt maximum size applies to the client area, while
+            # availableGeometry() describes the usable screen rectangle.
+            # Leave a little room for the native window frame so the frame
+            # itself cannot extend into the Dock.
+            frame = self.frameGeometry()
+            frame_width = max(0, frame.width() - self.width())
+            frame_height = max(0, frame.height() - self.height())
+            self._usable_max_size = QSize(
+                max(1, available.width() - frame_width),
+                max(1, available.height() - frame_height),
+            )
+            self.setMaximumSize(self._usable_max_size)
+
             QTimer.singleShot(
                 0,
                 lambda: self.setGeometry(available),
@@ -116,24 +129,34 @@ def apply_dashboard_layout_fixes():
             not self.isMaximized()
             and not self.isFullScreen()
         )
-        previous_geometry = self.geometry() if preserve_geometry else None
+
+        if not preserve_geometry:
+            original_switch_page(self, index)
+            return
+
+        previous_geometry = self.geometry()
+        previous_minimum = self.minimumSize()
+        previous_maximum = self.maximumSize()
+
+        # Temporarily make the current window size both the minimum and
+        # maximum. This prevents QStackedWidget/layout negotiation from
+        # changing the top-level window while the new page is installed.
+        current_size = previous_geometry.size()
+        self.setMinimumSize(current_size)
+        self.setMaximumSize(current_size)
 
         original_switch_page(self, index)
 
-        if previous_geometry is not None:
-            # Changing the stacked page can cause Qt to recalculate the
-            # top-level window size from the new page's size hint. Restore
-            # the user's chosen geometry after that layout pass. This is
-            # particularly important on macOS, where the available screen
-            # geometry excludes the Dock.
-            QTimer.singleShot(
-                0,
-                lambda: self.setGeometry(previous_geometry),
-            )
-            QTimer.singleShot(
-                50,
-                lambda: self.setGeometry(previous_geometry),
-            )
+        def restore_window_geometry():
+            self.setGeometry(previous_geometry)
+            self.setMinimumSize(previous_minimum)
+            self.setMaximumSize(previous_maximum)
+            self.setGeometry(previous_geometry)
+
+        # One event-loop pass lets the stacked layout settle; a second pass
+        # handles the delayed native layout recalculation seen on macOS.
+        QTimer.singleShot(0, restore_window_geometry)
+        QTimer.singleShot(100, restore_window_geometry)
 
     MainWindow.__init__ = patched_main_window_init
     MainWindow.switch_page = patched_switch_page
