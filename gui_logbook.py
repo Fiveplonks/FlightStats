@@ -7,6 +7,7 @@ from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
+    QFrame,
     QGridLayout,
     QHeaderView,
     QHBoxLayout,
@@ -55,52 +56,88 @@ class LogbookPage(QWidget):
         self.year_tabs.currentChanged.connect(self.year_tab_changed)
         layout.addWidget(self.year_tabs)
 
-        filter_bar = QHBoxLayout()
-        self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search date, airport, aircraft, registration...")
-        self.search_box.setObjectName("searchBox")
-        filter_bar.addWidget(self.search_box, 1)
+        filters_frame = QFrame()
+        filters_frame.setObjectName("logbookFilters")
+        filters_layout = QGridLayout(filters_frame)
+        filters_layout.setContentsMargins(16, 12, 16, 12)
+        filters_layout.setHorizontalSpacing(10)
+        filters_layout.setVerticalSpacing(8)
 
+        search_label = QLabel("Search")
+        search_label.setObjectName("controlLabel")
+        filters_layout.addWidget(search_label, 0, 0)
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Date, airport, aircraft, registration...")
+        self.search_box.setObjectName("searchBox")
+        filters_layout.addWidget(self.search_box, 0, 1, 1, 3)
+
+        aircraft_label = QLabel("Aircraft")
+        aircraft_label.setObjectName("controlLabel")
+        filters_layout.addWidget(aircraft_label, 0, 4)
         self.aircraft_filter = QComboBox()
         self.aircraft_filter.setObjectName("filterBox")
         self.aircraft_filter.addItem("All aircraft")
-        filter_bar.addWidget(self.aircraft_filter)
-        layout.addLayout(filter_bar)
+        filters_layout.addWidget(self.aircraft_filter, 0, 5)
 
-        analysis_frame = QWidget()
-        analysis_layout = QGridLayout(analysis_frame)
-        analysis_layout.setContentsMargins(0, 0, 0, 0)
-        analysis_layout.setHorizontalSpacing(10)
-        analysis_layout.setVerticalSpacing(6)
-
-        analysis_layout.addWidget(QLabel("From"), 0, 0)
+        from_label = QLabel("From")
+        from_label.setObjectName("controlLabel")
+        filters_layout.addWidget(from_label, 1, 0)
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
         self.start_date.setDisplayFormat("dd-MM-yyyy")
-        analysis_layout.addWidget(self.start_date, 0, 1)
+        self.start_date.setObjectName("dateFilter")
+        filters_layout.addWidget(self.start_date, 1, 1)
 
-        analysis_layout.addWidget(QLabel("To"), 0, 2)
+        to_label = QLabel("To")
+        to_label.setObjectName("controlLabel")
+        filters_layout.addWidget(to_label, 1, 2)
         self.end_date = QDateEdit()
         self.end_date.setCalendarPopup(True)
         self.end_date.setDisplayFormat("dd-MM-yyyy")
-        analysis_layout.addWidget(self.end_date, 0, 3)
+        self.end_date.setObjectName("dateFilter")
+        filters_layout.addWidget(self.end_date, 1, 3)
 
-        analysis_layout.addWidget(QLabel("Chart"), 0, 4)
+        chart_label = QLabel("Chart")
+        chart_label.setObjectName("controlLabel")
+        filters_layout.addWidget(chart_label, 1, 4)
         self.analysis_metric = QComboBox()
+        self.analysis_metric.setObjectName("filterBox")
         self.analysis_metric.addItems(("Cumulative flight time", "Monthly flight time"))
-        analysis_layout.addWidget(self.analysis_metric, 0, 5)
+        filters_layout.addWidget(self.analysis_metric, 1, 5)
+        filters_layout.setColumnStretch(1, 1)
+        filters_layout.setColumnStretch(3, 1)
+        layout.addWidget(filters_frame)
 
+        analysis_frame = QFrame()
+        analysis_frame.setObjectName("logbookAnalysis")
+        analysis_layout = QVBoxLayout(analysis_frame)
+        analysis_layout.setContentsMargins(18, 14, 18, 14)
+        analysis_layout.setSpacing(8)
+
+        analysis_header = QHBoxLayout()
+        analysis_title = QLabel("Flight time analysis")
+        analysis_title.setObjectName("sectionTitle")
+        analysis_header.addWidget(analysis_title)
+        analysis_header.addStretch()
         self.analysis_total_label = QLabel("Selected flight time: —")
-        self.analysis_total_label.setObjectName("statusLabel")
-        analysis_layout.addWidget(self.analysis_total_label, 1, 0, 1, 4)
+        self.analysis_total_label.setObjectName("analysisTotal")
+        analysis_header.addWidget(self.analysis_total_label)
+        analysis_layout.addLayout(analysis_header)
 
         self.analysis_chart = FlightTimeChart(export_title="FlightStats Logbook Analysis")
-        analysis_layout.addWidget(self.analysis_chart, 1, 4, 1, 2)
+        self.analysis_chart.setMinimumHeight(220)
+        analysis_layout.addWidget(self.analysis_chart)
         layout.addWidget(analysis_frame)
 
+        records_header = QHBoxLayout()
+        records_title = QLabel("Flight records")
+        records_title.setObjectName("sectionTitle")
+        records_header.addWidget(records_title)
+        records_header.addStretch()
         self.result_label = QLabel("0 flights")
         self.result_label.setObjectName("statusLabel")
-        layout.addWidget(self.result_label)
+        records_header.addWidget(self.result_label)
+        layout.addLayout(records_header)
 
         self.table = QTableWidget()
         self.table.setObjectName("logbookTable")
@@ -126,15 +163,9 @@ class LogbookPage(QWidget):
         self.aircraft_filter.currentTextChanged.connect(self.apply_filters)
         self.start_date.dateChanged.connect(self.apply_filters)
         self.end_date.dateChanged.connect(self.apply_filters)
-        # currentTextChanged emits the new text, not a list of flights.
-        # Pass no explicit flight list so update_analysis() recalculates from
-        # the currently active filters.
-        self.analysis_metric.currentTextChanged.connect(
-            lambda _text: self.update_analysis()
-        )
+        self.analysis_metric.currentTextChanged.connect(lambda _text: self.update_analysis())
 
     def showEvent(self, event):
-        """Refresh presentation units without rebuilding the 1500+ row table."""
         self.units.load()
         super().showEvent(event)
 
@@ -142,14 +173,10 @@ class LogbookPage(QWidget):
         self.data = data
         self.units.load()
         self._table_populated = False
-
         self.aircraft_filter.blockSignals(True)
         self.aircraft_filter.clear()
         self.aircraft_filter.addItem("All aircraft")
-        aircraft_types = {
-            self.database.normalize_type(flight.aircraft)
-            for flight in data.flights
-        }
+        aircraft_types = {self.database.normalize_type(flight.aircraft) for flight in data.flights}
         for aircraft in sorted(aircraft_types):
             if aircraft:
                 self.aircraft_filter.addItem(aircraft)
@@ -193,7 +220,6 @@ class LogbookPage(QWidget):
             return
         text = self.year_tabs.tabText(index)
         self.selected_year = None if text == "ALL" else int(text)
-
         if self.selected_year is not None:
             all_dates = [flight.date for flight in self.data.flights if flight.date]
             minimum = min(all_dates)
@@ -218,16 +244,13 @@ class LogbookPage(QWidget):
     def _matches(self, flight):
         if self.selected_year is not None and flight.date.year != self.selected_year:
             return False
-
         start_date, end_date = self._date_range()
         if flight.date < start_date or flight.date > end_date:
             return False
-
         selected_aircraft = self.aircraft_filter.currentText()
         aircraft = self.database.normalize_type(flight.aircraft)
         if selected_aircraft != "All aircraft" and aircraft != selected_aircraft:
             return False
-
         search_text = self.search_box.text().strip().lower()
         searchable = " ".join([
             str(flight.date), flight.departure, flight.arrival,
@@ -238,7 +261,6 @@ class LogbookPage(QWidget):
     def apply_filters(self):
         if self.data is None:
             return
-
         matches = [
             (index, flight)
             for index, flight in enumerate(self.data.flights)
@@ -253,10 +275,8 @@ class LogbookPage(QWidget):
             return
         if flights is None:
             flights = [flight for flight in self.data.flights if self._matches(flight)]
-
         total_minutes = sum(flight.flight_minutes or 0 for flight in flights)
         self.analysis_total_label.setText(f"Selected flight time: {format_hours(total_minutes)}")
-
         if self.analysis_metric.currentText() == "Monthly flight time":
             points = self._monthly_totals(flights)
         else:
@@ -273,7 +293,6 @@ class LogbookPage(QWidget):
             monthly[key] = monthly.get(key, 0) + flight.flight_minutes
         if not monthly:
             return []
-
         return [
             (date(year, month, monthrange(year, month)[1]), minutes)
             for (year, month), minutes in sorted(monthly.items())
@@ -285,50 +304,27 @@ class LogbookPage(QWidget):
         try:
             self.table.clearContents()
             self.table.setRowCount(len(matches))
-
             for row, (original_index, flight) in enumerate(matches):
                 distance_result = self.data.flight_distances[original_index]
                 distance = distance_result.get("distance_km") if isinstance(distance_result, dict) else None
                 fuel_result = self.data.fuel_results[original_index]
                 fuel = fuel_result.get("fuel") if isinstance(fuel_result, dict) else None
                 fuel_unit = fuel_result.get("unit") if isinstance(fuel_result, dict) else None
-
                 self.set_item(row, 0, flight.date.strftime("%d-%m-%Y"), flight.date)
                 self.set_item(row, 1, flight.departure)
-
                 departure_time = flight.departure_time
-                departure_sort = (
-                    departure_time.hour * 60 + departure_time.minute
-                    if departure_time else None
-                )
-                self.set_item(
-                    row, 2,
-                    departure_time.strftime("%H:%M") if departure_time else "—",
-                    departure_sort,
-                )
-
+                departure_sort = departure_time.hour * 60 + departure_time.minute if departure_time else None
+                self.set_item(row, 2, departure_time.strftime("%H:%M") if departure_time else "—", departure_sort)
                 self.set_item(row, 3, flight.arrival)
                 arrival_time = flight.arrival_time
-                arrival_sort = (
-                    arrival_time.hour * 60 + arrival_time.minute
-                    if arrival_time else None
-                )
-                self.set_item(
-                    row, 4,
-                    arrival_time.strftime("%H:%M") if arrival_time else "—",
-                    arrival_sort,
-                )
-
+                arrival_sort = arrival_time.hour * 60 + arrival_time.minute if arrival_time else None
+                self.set_item(row, 4, arrival_time.strftime("%H:%M") if arrival_time else "—", arrival_sort)
                 aircraft = self.database.normalize_type(flight.aircraft)
                 self.set_item(row, 5, aircraft)
                 self.set_item(row, 6, flight.registration)
                 self.set_item(row, 7, format_hours(flight.flight_minutes), flight.flight_minutes)
                 self.set_item(row, 8, format_distance(distance, self.units.distance_unit), distance)
-                self.set_item(
-                    row, 9,
-                    format_fuel_quantity(fuel, fuel_unit, self.units.fuel_unit),
-                    fuel,
-                )
+                self.set_item(row, 9, format_fuel_quantity(fuel, fuel_unit, self.units.fuel_unit), fuel)
         finally:
             self.table.setUpdatesEnabled(True)
             self.table.setSortingEnabled(True)
