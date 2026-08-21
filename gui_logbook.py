@@ -153,10 +153,10 @@ class LogbookPage(QWidget):
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
-        widths = (95, 85, 60, 85, 60, 105, 105, 90, 110, 110)
-        for column, width in enumerate(widths):
-            header.setSectionResizeMode(column, QHeaderView.Fixed)
-            header.resizeSection(column, width)
+        # Fill the complete available table width while keeping every column
+        # visible and aligned with the full-width analysis section.
+        for column in range(self.table.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.Stretch)
         layout.addWidget(self.table, 1)
 
         self.search_box.textChanged.connect(self.apply_filters)
