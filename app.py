@@ -9,7 +9,9 @@ Packaged:
 """
 
 from gui import main
+from gui_layout_fixes import apply_dashboard_layout_fixes
 
 
 if __name__ == "__main__":
+    apply_dashboard_layout_fixes()
     main()
