@@ -1,5 +1,7 @@
 """Logbook page for FlightStats."""
 
+from datetime import date
+
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QComboBox,
@@ -63,7 +65,6 @@ class LogbookPage(QWidget):
         filter_bar.addWidget(self.aircraft_filter)
         layout.addLayout(filter_bar)
 
-        # Detailed analysis controls belong on the Logbook page.
         analysis_frame = QWidget()
         analysis_layout = QGridLayout(analysis_frame)
         analysis_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,19 +85,14 @@ class LogbookPage(QWidget):
 
         analysis_layout.addWidget(QLabel("Chart"), 0, 4)
         self.analysis_metric = QComboBox()
-        self.analysis_metric.addItems((
-            "Cumulative flight time",
-            "Monthly flight time",
-        ))
+        self.analysis_metric.addItems(("Cumulative flight time", "Monthly flight time"))
         analysis_layout.addWidget(self.analysis_metric, 0, 5)
 
         self.analysis_total_label = QLabel("Selected flight time: —")
         self.analysis_total_label.setObjectName("statusLabel")
         analysis_layout.addWidget(self.analysis_total_label, 1, 0, 1, 4)
 
-        self.analysis_chart = FlightTimeChart(
-            export_title="FlightStats Logbook Analysis"
-        )
+        self.analysis_chart = FlightTimeChart(export_title="FlightStats Logbook Analysis")
         analysis_layout.addWidget(self.analysis_chart, 1, 4, 1, 2)
         layout.addWidget(analysis_frame)
 
@@ -128,6 +124,13 @@ class LogbookPage(QWidget):
         self.end_date.dateChanged.connect(self.apply_filters)
         self.analysis_metric.currentTextChanged.connect(self.update_analysis)
 
+    def showEvent(self, event):
+        """Refresh presentation units whenever the page becomes visible."""
+        self.units.load()
+        super().showEvent(event)
+        if self.data is not None:
+            self.apply_filters()
+
     def set_data(self, data):
         self.data = data
         self.units.load()
@@ -143,11 +146,9 @@ class LogbookPage(QWidget):
             if aircraft:
                 self.aircraft_filter.addItem(aircraft)
         self.aircraft_filter.blockSignals(False)
-
         self.build_year_tabs()
 
     def set_units(self):
-        """Reload persisted units and refresh presentation values."""
         self.units.load()
         self.apply_filters()
 
@@ -168,20 +169,16 @@ class LogbookPage(QWidget):
         dates = [flight.date for flight in self.data.flights if flight.date]
         if not dates:
             return
-        minimum = QDate(dates[0].year, dates[0].month, dates[0].day)
-        maximum = QDate(dates[-1].year, dates[-1].month, dates[-1].day)
-        for date_value in dates[1:]:
-            qdate = QDate(date_value.year, date_value.month, date_value.day)
-            if qdate < minimum:
-                minimum = qdate
-            if qdate > maximum:
-                maximum = qdate
-        self.start_date.setMinimumDate(minimum)
-        self.start_date.setMaximumDate(maximum)
-        self.end_date.setMinimumDate(minimum)
-        self.end_date.setMaximumDate(maximum)
-        self.start_date.setDate(minimum)
-        self.end_date.setDate(maximum)
+        minimum = min(dates)
+        maximum = max(dates)
+        minimum_qdate = QDate(minimum.year, minimum.month, minimum.day)
+        maximum_qdate = QDate(maximum.year, maximum.month, maximum.day)
+        self.start_date.setMinimumDate(minimum_qdate)
+        self.start_date.setMaximumDate(maximum_qdate)
+        self.end_date.setMinimumDate(minimum_qdate)
+        self.end_date.setMaximumDate(maximum_qdate)
+        self.start_date.setDate(minimum_qdate)
+        self.end_date.setDate(maximum_qdate)
 
     def year_tab_changed(self, index):
         if self.data is None or index < 0:
@@ -190,19 +187,21 @@ class LogbookPage(QWidget):
         self.selected_year = None if text == "ALL" else int(text)
 
         if self.selected_year is not None:
-            self.start_date.setDate(QDate(self.selected_year, 1, 1).addDays(0).max(self.start_date.minimumDate()))
-            self.end_date.setDate(QDate(self.selected_year, 12, 31).min(self.end_date.maximumDate()))
+            all_dates = [flight.date for flight in self.data.flights if flight.date]
+            minimum = min(all_dates)
+            maximum = max(all_dates)
+            start = max(date(self.selected_year, 1, 1), minimum)
+            end = min(date(self.selected_year, 12, 31), maximum)
+            self.start_date.setDate(QDate(start.year, start.month, start.day))
+            self.end_date.setDate(QDate(end.year, end.month, end.day))
         else:
             self._set_date_bounds()
         self.apply_filters()
 
     def _date_range(self):
-        return (
-            self.start_date.date().toPython(),
-            self.end_date.date().toPython(),
-        )
+        return self.start_date.date().toPython(), self.end_date.date().toPython()
 
-    def _matches(self, index, flight):
+    def _matches(self, flight):
         if self.selected_year is not None and flight.date.year != self.selected_year:
             return False
 
@@ -229,7 +228,7 @@ class LogbookPage(QWidget):
         matches = [
             (index, flight)
             for index, flight in enumerate(self.data.flights)
-            if self._matches(index, flight)
+            if self._matches(flight)
         ]
         self.populate_table(matches)
         self.result_label.setText(f"{len(matches):,} flights")
@@ -239,15 +238,10 @@ class LogbookPage(QWidget):
         if self.data is None:
             return
         if flights is None:
-            flights = [
-                flight for flight in self.data.flights
-                if self._matches(0, flight)
-            ]
+            flights = [flight for flight in self.data.flights if self._matches(flight)]
 
         total_minutes = sum(flight.flight_minutes or 0 for flight in flights)
-        self.analysis_total_label.setText(
-            f"Selected flight time: {format_hours(total_minutes)}"
-        )
+        self.analysis_total_label.setText(f"Selected flight time: {format_hours(total_minutes)}")
 
         if self.analysis_metric.currentText() == "Monthly flight time":
             points = self._monthly_totals(flights)
@@ -267,7 +261,6 @@ class LogbookPage(QWidget):
             return []
 
         from calendar import monthrange
-        from datetime import date
         return [
             (date(year, month, monthrange(year, month)[1]), minutes)
             for (year, month), minutes in sorted(monthly.items())
