@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui_components import LogbookDropZone, MetricCard
-from gui_flight_time_chart import FlightTimeChart, monthly_cumulative_flight_time
+from gui_flight_time_chart import FlightTimeChart, annual_cumulative_flight_time
 from gui_unit_dialog import UnitSettingsDialog
 from gui_units import UnitSettings, format_distance, format_fuel_quantity
 from gui_utils import format_hours
@@ -132,7 +132,7 @@ class DashboardPage(QWidget):
         graph_title.setObjectName("careerStatsTitle")
         graph_layout.addWidget(graph_title)
 
-        graph_subtitle = QLabel("Cumulative logbook flight time by month")
+        graph_subtitle = QLabel("Cumulative logbook flight time by year")
         graph_subtitle.setObjectName("pageSubtitle")
         graph_layout.addWidget(graph_subtitle)
 
@@ -157,7 +157,10 @@ class DashboardPage(QWidget):
             if self._data is not None:
                 current = self.year_tabs.currentIndex()
                 self.update_for_year(self._year_from_index(current))
-                self.update_flight_time_chart(self._data.flights)
+                self.update_flight_time_chart(
+                    self._data.flights,
+                    self._year_from_index(current),
+                )
             self.units_changed.emit()
 
     def _year_from_index(self, index):
@@ -213,8 +216,10 @@ class DashboardPage(QWidget):
         self.update_flight_time_chart(data.flights)
         self.build_year_tabs()
 
-    def update_flight_time_chart(self, flights):
-        self.flight_time_chart.set_points(monthly_cumulative_flight_time(flights))
+    def update_flight_time_chart(self, flights, through_year=None):
+        self.flight_time_chart.set_points(
+            annual_cumulative_flight_time(flights, through_year)
+        )
 
     def build_year_tabs(self):
         self.year_tabs.blockSignals(True)
@@ -226,11 +231,14 @@ class DashboardPage(QWidget):
         self.year_tabs.blockSignals(False)
         self.year_tabs.setCurrentIndex(0)
         self.update_for_year(None)
+        self.update_flight_time_chart(self._data.flights, None)
 
     def year_tab_changed(self, index):
         if index < 0:
             return
-        self.update_for_year(self._year_from_index(index))
+        year = self._year_from_index(index)
+        self.update_for_year(year)
+        self.update_flight_time_chart(self._data.flights, year)
 
     def update_for_year(self, year):
         flights = [
