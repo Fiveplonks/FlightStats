@@ -4,6 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -123,8 +124,6 @@ class DashboardPage(QWidget):
             cards_layout.addWidget(widget, row, column)
         self.layout.addLayout(cards_layout)
 
-        # High-level career graph. It is intentionally monthly rather than
-        # per-flight so a 1,500+ flight logbook remains readable.
         graph_frame = QFrame()
         graph_frame.setObjectName("careerStatsFrame")
         graph_layout = QVBoxLayout(graph_frame)
@@ -139,9 +138,7 @@ class DashboardPage(QWidget):
         graph_subtitle.setObjectName("pageSubtitle")
         graph_layout.addWidget(graph_subtitle)
 
-        self.flight_time_chart = FlightTimeChart(
-            export_title="FlightStats Total Flying Hours"
-        )
+        self.flight_time_chart = FlightTimeChart(export_title="FlightStats Total Flying Hours")
         graph_layout.addWidget(self.flight_time_chart)
         self.graph_frame = graph_frame
         self.layout.addWidget(graph_frame)
@@ -268,9 +265,7 @@ class DashboardPage(QWidget):
     def show_statistics(self, logbook_path):
         self.logbook_drop_zone.hide()
         self.logbook_status_label.show()
-        self.logbook_status_label.setText(
-            f"Current logbook: {Path(logbook_path).name}"
-        )
+        self.logbook_status_label.setText(f"Current logbook: {Path(logbook_path).name}")
         self.loading_frame.hide()
         for widget in (
             self.flights_card, self.time_card, self.previous_experience_card,
@@ -307,14 +302,8 @@ class DashboardPage(QWidget):
         self.update_for_year(self._year_from_index(index))
 
     def update_for_year(self, year):
-        flights = [
-            flight for flight in self._data.flights
-            if year is None or flight.date.year == year
-        ]
-        indexes = [
-            index for index, flight in enumerate(self._data.flights)
-            if year is None or flight.date.year == year
-        ]
+        flights = [flight for flight in self._data.flights if year is None or flight.date.year == year]
+        indexes = [index for index, flight in enumerate(self._data.flights) if year is None or flight.date.year == year]
 
         total_minutes = sum(flight.flight_minutes or 0 for flight in flights)
         validated_logged_minutes = sum(
@@ -356,11 +345,8 @@ class DashboardPage(QWidget):
         self.validated_logbook_card.set_value(format_hours(validated_logged_minutes))
         self.total_experience_card.set_value(format_hours(total_minutes + previous_experience))
         self.distance_card.set_value(format_distance(total_distance, self.units.distance_unit))
-
-        jet_display = format_fuel_quantity(jet_fuel, "kg/h", self.units.fuel_unit)
-        piston_display = format_fuel_quantity(piston_fuel, "L/h", self.units.fuel_unit)
-        self.jet_fuel_card.set_value(jet_display)
-        self.piston_fuel_card.set_value(piston_display)
+        self.jet_fuel_card.set_value(format_fuel_quantity(jet_fuel, "kg/h", self.units.fuel_unit))
+        self.piston_fuel_card.set_value(format_fuel_quantity(piston_fuel, "L/h", self.units.fuel_unit))
         self.airports_card.set_value(f"{len(airports):,}")
         self.update_career_stats(flights)
 
@@ -390,9 +376,7 @@ class DashboardPage(QWidget):
             aircraft_counts[aircraft] = aircraft_counts.get(aircraft, 0) + 1
         if aircraft_counts:
             top_aircraft = max(aircraft_counts, key=aircraft_counts.get)
-            self.career_stat_labels["top_aircraft"].setText(
-                f"{top_aircraft} ({aircraft_counts[top_aircraft]} flights)"
-            )
+            self.career_stat_labels["top_aircraft"].setText(f"{top_aircraft} ({aircraft_counts[top_aircraft]} flights)")
         else:
             self.career_stat_labels["top_aircraft"].setText("—")
 
@@ -403,9 +387,7 @@ class DashboardPage(QWidget):
                     airport_counts[airport] = airport_counts.get(airport, 0) + 1
         if airport_counts:
             top_airport = max(airport_counts, key=airport_counts.get)
-            self.career_stat_labels["top_airport"].setText(
-                f"{top_airport} ({airport_counts[top_airport]} visits)"
-            )
+            self.career_stat_labels["top_airport"].setText(f"{top_airport} ({airport_counts[top_airport]} visits)")
         else:
             self.career_stat_labels["top_airport"].setText("—")
         self.career_stat_labels["airport_count"].setText(f"{len(airport_counts):,}")
