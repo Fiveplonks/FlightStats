@@ -14,10 +14,10 @@ def apply_dashboard_layout_fixes():
         return
 
     def metric_size_hint(self):
-        return QSize(320, 105)
+        return QSize(320, 96)
 
     def metric_minimum_size_hint(self):
-        return QSize(0, 105)
+        return QSize(0, 88)
 
     MetricCard.sizeHint = metric_size_hint
     MetricCard.minimumSizeHint = metric_minimum_size_hint
@@ -39,13 +39,19 @@ def apply_dashboard_layout_fixes():
             self.piston_fuel_card,
             self.airports_card,
         ):
-            card.setMinimumHeight(105)
+            # Cards must be able to contract slightly when the user makes the
+            # window shorter. A fixed 105 px height caused their contents to
+            # overflow/overlap when the dashboard was resized vertically.
+            card.setMinimumHeight(88)
             card.setMaximumHeight(105)
-            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-        self.graph_frame.setMinimumHeight(255)
+        # Keep the graph large enough for comfortable reading, but allow it to
+        # contract with the rest of the dashboard instead of forcing cards to
+        # overlap when the available window height is reduced.
+        self.graph_frame.setMinimumHeight(220)
         self.graph_frame.setMaximumHeight(275)
-        self.flight_time_chart.setMinimumHeight(210)
+        self.flight_time_chart.setMinimumHeight(180)
         self.flight_time_chart.setMaximumHeight(230)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumSize(0, 0)
