@@ -54,11 +54,12 @@ class FlightTimeChart(QWidget):
 
         # Use familiar 500-hour increments on the Y-axis. The selected
         # range's exact cumulative total is shown only at the top.
-        tick_values = list(range(0, int(total) + 1, 500))
-        if not tick_values:
-            tick_values = [0]
-        if tick_values[-1] != total:
-            tick_values.append(total)
+        total_hours = total / 60
+        tick_hours = list(range(0, int(total_hours) + 1, 500))
+        if not tick_hours:
+            tick_hours = [0]
+        if tick_hours[-1] * 60 != total:
+            tick_hours.append(total_hours)
 
         grid_pen = QPen(self.palette().mid().color())
         grid_pen.setStyle(Qt.DotLine)
@@ -70,7 +71,8 @@ class FlightTimeChart(QWidget):
         font.setPointSize(9)
         painter.setFont(font)
 
-        for minutes in tick_values:
+        for hours in tick_hours:
+            minutes = hours * 60
             ratio = minutes / span
             y = rect.bottom() - ratio * rect.height()
             painter.setPen(grid_pen)
@@ -80,7 +82,7 @@ class FlightTimeChart(QWidget):
             if minutes == total:
                 label = format_hours(int(minutes))
             else:
-                label = f"{int(minutes / 60):,}"
+                label = f"{int(hours):,}"
 
             painter.drawText(
                 QRectF(0, y - 10, 52, 20),
