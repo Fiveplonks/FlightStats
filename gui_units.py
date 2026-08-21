@@ -12,6 +12,7 @@ FUEL_UNITS = ("kg/h", "L/h", "USG/h")
 # Stored fuel data remains in its original/canonical unit.
 JET_FUEL_DENSITY_KG_L = 0.804
 AVGAS_DENSITY_KG_L = 0.721
+US_GALLON_LITRES = 3.785411784
 
 
 def _load_settings():
@@ -36,16 +37,11 @@ def load_unit_preferences():
     settings = _load_settings()
     distance = settings.get("distance_unit", "km")
     fuel = settings.get("fuel_unit", "kg/h")
-
     if distance not in DISTANCE_UNITS:
         distance = "km"
     if fuel not in FUEL_UNITS:
         fuel = "kg/h"
-
-    return {
-        "distance_unit": distance,
-        "fuel_unit": fuel,
-    }
+    return {"distance_unit": distance, "fuel_unit": fuel}
 
 
 def save_unit_preferences(distance_unit, fuel_unit):
@@ -54,7 +50,6 @@ def save_unit_preferences(distance_unit, fuel_unit):
         raise ValueError(f"Unsupported distance unit: {distance_unit}")
     if fuel_unit not in FUEL_UNITS:
         raise ValueError(f"Unsupported fuel unit: {fuel_unit}")
-
     settings = _load_settings()
     settings["distance_unit"] = distance_unit
     settings["fuel_unit"] = fuel_unit
@@ -72,7 +67,7 @@ def convert_distance_km(value_km, target_unit):
 
 
 def convert_fuel_flow(value, source_unit, target_unit):
-    """Convert a fuel-flow value for presentation.
+    """Convert a fuel-flow/quantity value for presentation.
 
     ``kg/h`` is treated as Jet A/Jet A-1 and ``L/h`` as avgas because
     those are the two source units currently used by FlightStats.
@@ -85,7 +80,6 @@ def convert_fuel_flow(value, source_unit, target_unit):
         raise ValueError(f"Unsupported target fuel unit: {target_unit}")
 
     value = float(value)
-
     if source_unit == target_unit:
         return value
 
@@ -94,14 +88,13 @@ def convert_fuel_flow(value, source_unit, target_unit):
         if target_unit == "L/h":
             return litres
         if target_unit == "USG/h":
-            return litres / 3.785411784
+            return litres / US_GALLON_LITRES
         return value
 
-    # Source is L/h of avgas.
     if target_unit == "kg/h":
         return value * AVGAS_DENSITY_KG_L
     if target_unit == "USG/h":
-        return value / 3.785411784
+        return value / US_GALLON_LITRES
     return value
 
 
@@ -120,10 +113,12 @@ def format_fuel_flow(value, source_unit, target_unit, decimals=1):
 
 
 def format_fuel_quantity(value, source_unit, target_unit, decimals=1):
-    """Format a fuel quantity using the same density assumptions as flow."""
+    """Format a total fuel quantity using the selected fuel unit family."""
+    value = convert_fuel_flow(value, source_unit, target_unit)
     if value is None:
         return "—"
-    return format_fuel_flow(value, source_unit, target_unit, decimals)
+    quantity_units = {"kg/h": "kg", "L/h": "L", "USG/h": "US gal"}
+    return f"{value:,.{decimals}f} {quantity_units[target_unit]}"
 
 
 class UnitSettings:
