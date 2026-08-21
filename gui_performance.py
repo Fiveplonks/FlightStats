@@ -44,10 +44,6 @@ class PerformancePage(QWidget):
         layout.addWidget(title)
         layout.addWidget(subtitle)
 
-        # -------------------------------------------------
-        # YEAR TABS
-        # -------------------------------------------------
-
         self.year_tabs = QTabWidget()
         self.year_tabs.setObjectName("yearTabs")
 
@@ -55,15 +51,8 @@ class PerformancePage(QWidget):
         year_bar.setUsesScrollButtons(True)
         year_bar.setExpanding(False)
 
-        self.year_tabs.currentChanged.connect(
-            self.year_tab_changed
-        )
-
+        self.year_tabs.currentChanged.connect(self.year_tab_changed)
         layout.addWidget(self.year_tabs)
-
-        # -------------------------------------------------
-        # KPI CARDS
-        # -------------------------------------------------
 
         cards = QGridLayout()
         cards.setSpacing(12)
@@ -83,10 +72,6 @@ class PerformancePage(QWidget):
         cards.addWidget(self.longest_card, 1, 2)
 
         layout.addLayout(cards)
-
-        # -------------------------------------------------
-        # AIRCRAFT PERFORMANCE
-        # -------------------------------------------------
 
         aircraft_title = QLabel("Aircraft Performance")
         aircraft_title.setObjectName("sectionTitle")
@@ -109,10 +94,6 @@ class PerformancePage(QWidget):
         self._configure_table(self.aircraft_table)
         layout.addWidget(self.aircraft_table, 1)
 
-        # -------------------------------------------------
-        # ROUTE PERFORMANCE
-        # -------------------------------------------------
-
         route_title = QLabel("Route Performance")
         route_title.setObjectName("sectionTitle")
         layout.addWidget(route_title)
@@ -126,7 +107,7 @@ class PerformancePage(QWidget):
                 "Flights",
                 "Flight Time",
                 "Avg. Sector",
-                "Avg. Distance",
+                "Distance",
                 "Avg. Speed",
                 "Longest",
             ]
@@ -142,31 +123,12 @@ class PerformancePage(QWidget):
         table.verticalHeader().setVisible(False)
 
         header = table.horizontalHeader()
-
-        # Use deliberate proportions instead of ResizeToContents.
-        # Text-heavy columns get more room, while compact numeric
-        # columns remain narrower. The final column no longer absorbs
-        # all remaining space.
-        proportions = [
-            1.30,
-            0.75,
-            1.10,
-            1.25,
-            1.10,
-            1.15,
-            0.95,
-        ]
+        proportions = [1.30, 0.75, 1.10, 1.25, 1.10, 1.15, 0.95]
         total = sum(proportions)
 
         for column, proportion in enumerate(proportions):
-            header.setSectionResizeMode(
-                column,
-                QHeaderView.Stretch,
-            )
-            header.resizeSection(
-                column,
-                int(1000 * proportion / total),
-            )
+            header.setSectionResizeMode(column, QHeaderView.Stretch)
+            header.resizeSection(column, int(1000 * proportion / total))
 
     def set_data(self, data):
         """Load shared FlightStats data."""
@@ -183,20 +145,14 @@ class PerformancePage(QWidget):
             return
 
         years = sorted(
-            {
-                flight.date.year
-                for flight in self.data.flights
-            },
+            {flight.date.year for flight in self.data.flights},
             reverse=True,
         )
 
         self.year_tabs.addTab(QWidget(), "ALL")
 
         for year in years:
-            self.year_tabs.addTab(
-                QWidget(),
-                str(year),
-            )
+            self.year_tabs.addTab(QWidget(), str(year))
 
         self.selected_year = None
         self.year_tabs.blockSignals(False)
@@ -209,13 +165,7 @@ class PerformancePage(QWidget):
             return
 
         text = self.year_tabs.tabText(index)
-
-        self.selected_year = (
-            None
-            if text == "ALL"
-            else int(text)
-        )
-
+        self.selected_year = None if text == "ALL" else int(text)
         self.update_page()
 
     def _selected_flights(self):
@@ -225,20 +175,14 @@ class PerformancePage(QWidget):
         return [
             (index, flight)
             for index, flight in enumerate(self.data.flights)
-            if (
-                self.selected_year is None
-                or flight.date.year == self.selected_year
-            )
+            if self.selected_year is None or flight.date.year == self.selected_year
         ]
 
     def _distance_for(self, index):
-        if (
-            index >= len(self.data.flight_distances)
-        ):
+        if index >= len(self.data.flight_distances):
             return None
 
         result = self.data.flight_distances[index]
-
         if not isinstance(result, dict):
             return None
 
@@ -270,11 +214,7 @@ class PerformancePage(QWidget):
         longest = None
 
         for index, flight in selected:
-            minutes, distance, speed = self._flight_metrics(
-                index,
-                flight,
-            )
-
+            minutes, distance, speed = self._flight_metrics(index, flight)
             total_minutes += minutes
 
             if distance is not None:
@@ -286,49 +226,24 @@ class PerformancePage(QWidget):
                 speed_count += 1
 
             if minutes > 0:
-                longest = (
-                    minutes
-                    if longest is None
-                    else max(longest, minutes)
-                )
+                longest = minutes if longest is None else max(longest, minutes)
 
-        average_minutes = (
-            total_minutes / total_flights
-            if total_flights
-            else 0
-        )
+        average_minutes = total_minutes / total_flights if total_flights else 0
+        average_speed = speed_total / speed_count if speed_count else None
 
-        average_speed = (
-            speed_total / speed_count
-            if speed_count
-            else None
-        )
-
-        self.flights_card.set_value(
-            f"{total_flights:,}"
-        )
-        self.time_card.set_value(
-            format_hours(total_minutes)
-        )
+        self.flights_card.set_value(f"{total_flights:,}")
+        self.time_card.set_value(format_hours(total_minutes))
         self.distance_card.set_value(
-            f"{total_distance:,.1f} km"
-            if distance_count
-            else "—"
+            f"{total_distance:,.1f} km" if distance_count else "—"
         )
         self.average_card.set_value(
-            format_hours(round(average_minutes))
-            if total_flights
-            else "—"
+            format_hours(round(average_minutes)) if total_flights else "—"
         )
         self.speed_card.set_value(
-            f"{average_speed:,.1f} km/h"
-            if average_speed is not None
-            else "—"
+            f"{average_speed:,.1f} km/h" if average_speed is not None else "—"
         )
         self.longest_card.set_value(
-            format_hours(longest)
-            if longest is not None
-            else "—"
+            format_hours(longest) if longest is not None else "—"
         )
 
         self._update_aircraft_table(selected, total_flights)
@@ -341,13 +256,10 @@ class PerformancePage(QWidget):
         from parser.aircraft import AircraftResolver
 
         aircraft_resolver = AircraftResolver()
-
         stats = {}
 
         for index, flight in selected:
-            aircraft = database.normalize_type(
-                flight.aircraft
-            )
+            aircraft = database.normalize_type(flight.aircraft)
 
             item = stats.setdefault(
                 aircraft,
@@ -362,11 +274,7 @@ class PerformancePage(QWidget):
                 },
             )
 
-            minutes, distance, speed = self._flight_metrics(
-                index,
-                flight,
-            )
-
+            minutes, distance, speed = self._flight_metrics(index, flight)
             item["flights"] += 1
             item["minutes"] += minutes
 
@@ -374,28 +282,14 @@ class PerformancePage(QWidget):
                 item["distance"] += distance
                 item["distance_count"] += 1
 
-            resolution = aircraft_resolver.resolve(
-                flight.aircraft
-            )
-
-            # General-aviation training flights often operate
-            # non-directly between nearby airports. Their
-            # airport-to-airport distance therefore does not
-            # represent a meaningful cruise/air speed.
-            #
-            # Keep their flight time and distance statistics,
-            # but exclude them from average-speed calculation.
-            if (
-                resolution.category != "general_aviation"
-                and speed is not None
-            ):
+            resolution = aircraft_resolver.resolve(flight.aircraft)
+            if resolution.category != "general_aviation" and speed is not None:
                 item["speed_total"] += speed
                 item["speed_count"] += 1
 
             if minutes > 0:
                 item["longest"] = (
-                    minutes
-                    if item["longest"] is None
+                    minutes if item["longest"] is None
                     else max(item["longest"], minutes)
                 )
 
@@ -403,75 +297,37 @@ class PerformancePage(QWidget):
         self.aircraft_table.setRowCount(len(stats))
 
         for row, aircraft in enumerate(
-            sorted(
-                stats,
-                key=lambda name: (
-                    -stats[name]["flights"],
-                    name,
-                ),
-            )
+            sorted(stats, key=lambda name: (-stats[name]["flights"], name))
         ):
             item = stats[aircraft]
             flights = item["flights"]
-
-            average_minutes = (
-                item["minutes"] / flights
-                if flights
-                else 0
-            )
-
+            average_minutes = item["minutes"] / flights if flights else 0
             average_speed = (
-                item["speed_total"]
-                / item["speed_count"]
-                if item["speed_count"]
-                else None
+                item["speed_total"] / item["speed_count"]
+                if item["speed_count"] else None
             )
 
             values = [
                 (aircraft, aircraft),
                 (f"{flights:,}", flights),
+                (format_hours(item["minutes"]), item["minutes"]),
                 (
-                    format_hours(item["minutes"]),
-                    item["minutes"],
-                ),
-                (
-                    (
-                        f'{item["distance"]:,.1f} km'
-                        if item["distance_count"]
-                        else "—"
-                    ),
+                    f'{item["distance"]:,.1f} km' if item["distance_count"] else "—",
                     item["distance"],
                 ),
+                (format_hours(round(average_minutes)), average_minutes),
                 (
-                    format_hours(round(average_minutes)),
-                    average_minutes,
-                ),
-                (
-                    (
-                        f"{average_speed:,.1f} km/h"
-                        if average_speed is not None
-                        else "—"
-                    ),
+                    f"{average_speed:,.1f} km/h" if average_speed is not None else "—",
                     average_speed,
                 ),
                 (
-                    (
-                        format_hours(item["longest"])
-                        if item["longest"] is not None
-                        else "—"
-                    ),
+                    format_hours(item["longest"]) if item["longest"] is not None else "—",
                     item["longest"] or 0,
                 ),
             ]
 
             for column, (value, sort_value) in enumerate(values):
-                self.set_item(
-                    self.aircraft_table,
-                    row,
-                    column,
-                    value,
-                    sort_value,
-                )
+                self.set_item(self.aircraft_table, row, column, value, sort_value)
 
         self.aircraft_table.setSortingEnabled(True)
 
@@ -480,34 +336,27 @@ class PerformancePage(QWidget):
         routes = {}
 
         for index, flight in selected:
-            route = (
-                f"{flight.departure} → {flight.arrival}"
-            )
-
+            route = f"{flight.departure} → {flight.arrival}"
             item = routes.setdefault(
                 route,
                 {
                     "flights": 0,
                     "minutes": 0,
-                    "distance": 0.0,
-                    "distance_count": 0,
+                    "distance": None,
                     "speed_total": 0.0,
                     "speed_count": 0,
                     "longest": None,
                 },
             )
 
-            minutes, distance, speed = self._flight_metrics(
-                index,
-                flight,
-            )
-
+            minutes, distance, speed = self._flight_metrics(index, flight)
             item["flights"] += 1
             item["minutes"] += minutes
 
-            if distance is not None:
-                item["distance"] += distance
-                item["distance_count"] += 1
+            # Coordinate-derived distance is a property of the route,
+            # so display it once instead of averaging identical route entries.
+            if item["distance"] is None and distance is not None:
+                item["distance"] = distance
 
             if speed is not None:
                 item["speed_total"] += speed
@@ -515,8 +364,7 @@ class PerformancePage(QWidget):
 
             if minutes > 0:
                 item["longest"] = (
-                    minutes
-                    if item["longest"] is None
+                    minutes if item["longest"] is None
                     else max(item["longest"], minutes)
                 )
 
@@ -524,99 +372,40 @@ class PerformancePage(QWidget):
         self.route_table.setRowCount(len(routes))
 
         for row, route in enumerate(
-            sorted(
-                routes,
-                key=lambda name: (
-                    -routes[name]["flights"],
-                    name,
-                ),
-            )
+            sorted(routes, key=lambda name: (-routes[name]["flights"], name))
         ):
             item = routes[route]
             flights = item["flights"]
-
-            average_minutes = (
-                item["minutes"] / flights
-                if flights
-                else 0
-            )
-
-            average_distance = (
-                item["distance"]
-                / item["distance_count"]
-                if item["distance_count"]
-                else None
-            )
-
+            average_minutes = item["minutes"] / flights if flights else 0
             average_speed = (
-                item["speed_total"]
-                / item["speed_count"]
-                if item["speed_count"]
-                else None
+                item["speed_total"] / item["speed_count"]
+                if item["speed_count"] else None
             )
 
             values = [
                 (route, route),
                 (f"{flights:,}", flights),
+                (format_hours(item["minutes"]), item["minutes"]),
+                (format_hours(round(average_minutes)), average_minutes),
                 (
-                    format_hours(item["minutes"]),
-                    item["minutes"],
+                    f'{item["distance"]:,.1f} km' if item["distance"] is not None else "—",
+                    item["distance"] if item["distance"] is not None else 0,
                 ),
                 (
-                    format_hours(round(average_minutes)),
-                    average_minutes,
-                ),
-                (
-                    (
-                        f"{average_distance:,.1f} km"
-                        if average_distance is not None
-                        else "—"
-                    ),
-                    average_distance,
-                ),
-                (
-                    (
-                        f"{average_speed:,.1f} km/h"
-                        if average_speed is not None
-                        else "—"
-                    ),
+                    f"{average_speed:,.1f} km/h" if average_speed is not None else "—",
                     average_speed,
                 ),
                 (
-                    (
-                        format_hours(item["longest"])
-                        if item["longest"] is not None
-                        else "—"
-                    ),
+                    format_hours(item["longest"]) if item["longest"] is not None else "—",
                     item["longest"] or 0,
                 ),
             ]
 
             for column, (value, sort_value) in enumerate(values):
-                self.set_item(
-                    self.route_table,
-                    row,
-                    column,
-                    value,
-                    sort_value,
-                )
+                self.set_item(self.route_table, row, column, value, sort_value)
 
         self.route_table.setSortingEnabled(True)
 
-    def set_item(
-        self,
-        table,
-        row,
-        column,
-        text,
-        sort_value=None,
-    ):
-        item = SortableTableWidgetItem(
-            text,
-            sort_value,
-        )
-        table.setItem(
-            row,
-            column,
-            item,
-        )
+    def set_item(self, table, row, column, text, sort_value=None):
+        item = SortableTableWidgetItem(text, sort_value)
+        table.setItem(row, column, item)
