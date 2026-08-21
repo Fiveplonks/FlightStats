@@ -4,7 +4,7 @@ from calendar import monthrange
 from datetime import date
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QPainter, QPen
 from PySide6.QtWidgets import QFileDialog, QPushButton, QVBoxLayout, QWidget
 
 from gui_utils import format_hours
@@ -18,10 +18,6 @@ class FlightTimeChart(QWidget):
         self.points = []
         self.export_title = export_title
         self.setMinimumHeight(220)
-        self.setSizePolicy(
-            self.sizePolicy().horizontalPolicy(),
-            self.sizePolicy().verticalPolicy(),
-        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -69,13 +65,15 @@ class FlightTimeChart(QWidget):
         font.setPointSize(9)
         painter.setFont(font)
 
+        # The chart's y coordinate increases downward, so the largest
+        # cumulative value belongs at the top of the graph.
         for index in range(5):
             ratio = index / 4
             y = rect.bottom() - ratio * rect.height()
             painter.setPen(grid_pen)
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
             painter.setPen(text_pen)
-            minutes = maximum - ratio * span
+            minutes = minimum + ratio * span
             painter.drawText(
                 QRectF(0, y - 10, 52, 20),
                 Qt.AlignRight | Qt.AlignVCenter,
