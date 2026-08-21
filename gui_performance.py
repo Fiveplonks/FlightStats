@@ -132,7 +132,7 @@ class PerformancePage(QWidget):
             ]
         )
         self._configure_table(self.route_table)
-        layout.addWidget(self.route_table, 2)
+        layout.addWidget(self.route_table, 1)
 
     def _configure_table(self, table):
         table.setSortingEnabled(True)
@@ -142,12 +142,30 @@ class PerformancePage(QWidget):
         table.verticalHeader().setVisible(False)
 
         header = table.horizontalHeader()
-        header.setStretchLastSection(True)
 
-        for column in range(table.columnCount()):
+        # Use deliberate proportions instead of ResizeToContents.
+        # Text-heavy columns get more room, while compact numeric
+        # columns remain narrower. The final column no longer absorbs
+        # all remaining space.
+        proportions = [
+            1.30,
+            0.75,
+            1.10,
+            1.25,
+            1.10,
+            1.15,
+            0.95,
+        ]
+        total = sum(proportions)
+
+        for column, proportion in enumerate(proportions):
             header.setSectionResizeMode(
                 column,
-                QHeaderView.ResizeToContents,
+                QHeaderView.Stretch,
+            )
+            header.resizeSection(
+                column,
+                int(1000 * proportion / total),
             )
 
     def set_data(self, data):
@@ -602,4 +620,3 @@ class PerformancePage(QWidget):
             column,
             item,
         )
-
