@@ -49,9 +49,16 @@ class FlightTimeChart(QWidget):
 
         rect = self.rect().adjusted(58, 38, -18, -36)
         values = [point[1] for point in self.points]
-        maximum = max(values)
-        minimum = min(0, min(values))
-        span = max(maximum - minimum, 1)
+        total = max(values)
+        span = max(total, 1)
+
+        # Use familiar 500-hour increments on the Y-axis. The selected
+        # range's exact cumulative total is shown only at the top.
+        tick_values = list(range(0, int(total) + 1, 500))
+        if not tick_values:
+            tick_values = [0]
+        if tick_values[-1] != total:
+            tick_values.append(total)
 
         grid_pen = QPen(self.palette().mid().color())
         grid_pen.setStyle(Qt.DotLine)
@@ -63,17 +70,22 @@ class FlightTimeChart(QWidget):
         font.setPointSize(9)
         painter.setFont(font)
 
-        for index in range(5):
-            ratio = index / 4
+        for minutes in tick_values:
+            ratio = minutes / span
             y = rect.bottom() - ratio * rect.height()
             painter.setPen(grid_pen)
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
             painter.setPen(text_pen)
-            minutes = minimum + ratio * span
+
+            if minutes == total:
+                label = format_hours(int(minutes))
+            else:
+                label = f"{int(minutes / 60):,}"
+
             painter.drawText(
                 QRectF(0, y - 10, 52, 20),
                 Qt.AlignRight | Qt.AlignVCenter,
-                format_hours(int(minutes)),
+                label,
             )
 
         if len(self.points) == 1:
@@ -85,7 +97,7 @@ class FlightTimeChart(QWidget):
             ]
 
         def y_for(value):
-            return rect.bottom() - ((value - minimum) / span) * rect.height()
+            return rect.bottom() - (value / span) * rect.height()
 
         line_pen = QPen(self.palette().highlight().color())
         line_pen.setWidth(3)
@@ -186,8 +198,9 @@ def monthly_cumulative_flight_time(flights):
 def annual_cumulative_flight_time(flights, through_year=None):
     """Return one cumulative flight-time point per calendar year.
 
-    If ``through_year`` is supplied, the series stops at that year while
-    retaining all preceding years.
+    When ``through_year`` is supplied, the series stops at that year while
+    retaining all preceding years. This makes the Dashboard year selector
+    behave as a cumulative career-time cutoff rather than a single-year filter.
     """
     annual = {}
 
