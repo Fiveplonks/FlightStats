@@ -19,7 +19,11 @@ from PySide6.QtWidgets import (
 from gui_components import LogbookDropZone, MetricCard
 from gui_flight_time_chart import FlightTimeChart, annual_cumulative_flight_time
 from gui_unit_dialog import UnitSettingsDialog
-from gui_units import UnitSettings, format_distance, format_fuel_quantity
+from gui_units import (
+    UnitSettings,
+    convert_distance_km,
+    convert_fuel_flow,
+)
 from gui_utils import format_hours
 
 
@@ -281,9 +285,25 @@ class DashboardPage(QWidget):
         self.previous_experience_card.set_value(format_hours(previous_experience))
         self.validated_logbook_card.set_value(format_hours(validated_logged_minutes))
         self.total_experience_card.set_value(format_hours(total_minutes + previous_experience))
-        self.distance_card.set_value(format_distance(total_distance, self.units.distance_unit))
-        self.jet_fuel_card.set_value(format_fuel_quantity(jet_fuel, "kg/h", self.units.fuel_unit))
-        self.piston_fuel_card.set_value(format_fuel_quantity(piston_fuel, "L/h", self.units.fuel_unit))
+
+        distance_value = convert_distance_km(total_distance, self.units.distance_unit)
+        self.distance_card.set_value(
+            f"{distance_value:,.1f}" if distance_value is not None else "—"
+        )
+        self.distance_card.set_unit(self.units.distance_unit)
+
+        jet_fuel_value = convert_fuel_flow(jet_fuel, "kg/h", self.units.fuel_unit)
+        piston_fuel_value = convert_fuel_flow(piston_fuel, "L/h", self.units.fuel_unit)
+        fuel_display_units = {"kg/h": "kg", "L/h": "L", "USG/h": "US gal"}
+        display_fuel_unit = fuel_display_units[self.units.fuel_unit]
+        self.jet_fuel_card.set_value(
+            f"{jet_fuel_value:,.1f}" if jet_fuel_value is not None else "—"
+        )
+        self.jet_fuel_card.set_unit(display_fuel_unit)
+        self.piston_fuel_card.set_value(
+            f"{piston_fuel_value:,.1f}" if piston_fuel_value is not None else "—"
+        )
+        self.piston_fuel_card.set_unit(display_fuel_unit)
         self.airports_card.set_value(f"{len(airports):,}")
 
         # Year selection is a cumulative cutoff for the career-time graph.
