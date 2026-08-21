@@ -4,14 +4,14 @@ from calendar import monthrange
 from datetime import date
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFileDialog, QPushButton, QVBoxLayout, QWidget
 
 from gui_utils import format_hours
 
 
 class FlightTimeChart(QWidget):
-    """Cumulative flight-time chart with PNG export."""
+    """Cumulative or aggregated flight-time chart with PNG export."""
 
     def __init__(self, parent=None, export_title="FlightStats Flight Time"):
         super().__init__(parent)
@@ -30,7 +30,7 @@ class FlightTimeChart(QWidget):
         layout.addWidget(self.export_button, 0, Qt.AlignRight)
 
     def set_points(self, points):
-        """Set chart points as ``[(date, cumulative_minutes), ...]``."""
+        """Set chart points as ``[(date, value_minutes), ...]``."""
         self.points = list(points or [])
         self.update()
 
@@ -56,15 +56,13 @@ class FlightTimeChart(QWidget):
         grid_pen = QPen(self.palette().mid().color())
         grid_pen.setStyle(Qt.DotLine)
         grid_pen.setWidth(1)
-        painter.setPen(grid_pen)
-
         text_pen = QPen(self.palette().text().color())
+
         painter.setPen(text_pen)
         font = painter.font()
         font.setPointSize(9)
         painter.setFont(font)
 
-        # Five horizontal grid levels, including zero and the maximum.
         for index in range(5):
             ratio = index / 4
             y = rect.bottom() - ratio * rect.height()
@@ -100,21 +98,18 @@ class FlightTimeChart(QWidget):
                 painter.drawLine(previous, point)
             previous = point
 
-        point_brush = QBrush(self.palette().highlight().color())
-        painter.setBrush(point_brush)
+        painter.setBrush(QBrush(self.palette().highlight().color()))
         painter.setPen(Qt.NoPen)
         for x, (_, value) in zip(x_values, self.points):
             painter.drawEllipse(QPointF(x, y_for(value)), 3.5, 3.5)
 
-        # Keep the x-axis readable even for many monthly points.
         painter.setPen(text_pen)
-        labels = self._x_labels()
-        for index, (x, label) in enumerate(zip(x_values, labels)):
+        for index, label in enumerate(self._x_labels()):
             if label is None:
                 continue
-            width = 72
+            x = x_values[index]
             painter.drawText(
-                QRectF(x - width / 2, rect.bottom() + 8, width, 24),
+                QRectF(x - 42, rect.bottom() + 8, 84, 24),
                 Qt.AlignHCenter | Qt.AlignTop,
                 label,
             )
@@ -128,16 +123,13 @@ class FlightTimeChart(QWidget):
     def _x_labels(self):
         if not self.points:
             return []
-
         count = len(self.points)
         target = 7
         step = max(1, (count - 1) // (target - 1))
         labels = [None] * count
-
         for index, (point_date, _) in enumerate(self.points):
             if index == 0 or index == count - 1 or index % step == 0:
                 labels[index] = point_date.strftime("%b %Y")
-
         return labels
 
     def export_image(self):
@@ -153,15 +145,8 @@ class FlightTimeChart(QWidget):
         if not path:
             return
 
-        image = QPixmap(max(self.width(), 1000), 560)
-        image.fill(self.palette().base().color())
-
-        old_size = self.size()
-        self.resize(image.size())
-        image = QPixmap(self.size())
-        image.fill(self.palette().base().color())
-        self.render(image)
-        self.resize(old_size)
+        source = self.grab()
+        image = source.scaled(1400, 760, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         image.save(path, "PNG")
 
 
@@ -188,7 +173,6 @@ def monthly_cumulative_flight_time(flights):
     while (year, month) <= (last_year, last_month):
         cumulative += monthly.get((year, month), 0)
         points.append((date(year, month, monthrange(year, month)[1]), cumulative))
-
         if month == 12:
             year += 1
             month = 1
