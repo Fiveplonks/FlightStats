@@ -87,11 +87,19 @@ def apply_dashboard_layout_fixes():
         )
         for page in pages:
             page.setMinimumSize(0, 0)
-            page.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            page.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
+        # The stacked container must never ask the top-level window to grow
+        # to accommodate a page's sizeHint. In particular, the Logbook page
+        # contains a large table whose sizeHint can change when it becomes
+        # visible. The user-selected window geometry is authoritative.
         self.pages.setMinimumSize(0, 0)
-        self.pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.pages.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.centralWidget().setMinimumSize(0, 0)
+        self.centralWidget().setSizePolicy(
+            QSizePolicy.Ignored,
+            QSizePolicy.Ignored,
+        )
 
         screen = QApplication.primaryScreen()
         self._startup_available_geometry = (
@@ -102,10 +110,6 @@ def apply_dashboard_layout_fixes():
             available = self._startup_available_geometry
             self.setGeometry(available)
 
-            # The Qt maximum size applies to the client area, while
-            # availableGeometry() describes the usable screen rectangle.
-            # Leave a little room for the native window frame so the frame
-            # itself cannot extend into the Dock.
             frame = self.frameGeometry()
             frame_width = max(0, frame.width() - self.width())
             frame_height = max(0, frame.height() - self.height())
@@ -138,9 +142,10 @@ def apply_dashboard_layout_fixes():
         previous_minimum = self.minimumSize()
         previous_maximum = self.maximumSize()
 
-        # Temporarily make the current window size both the minimum and
-        # maximum. This prevents QStackedWidget/layout negotiation from
-        # changing the top-level window while the new page is installed.
+        # The stacked widget and central widget use Ignored size policies, so
+        # the page cannot propagate a larger sizeHint to the MainWindow. Keep
+        # the explicit geometry lock as a second line of defence for the
+        # native macOS layout pass.
         current_size = previous_geometry.size()
         self.setMinimumSize(current_size)
         self.setMaximumSize(current_size)
@@ -153,8 +158,6 @@ def apply_dashboard_layout_fixes():
             self.setMaximumSize(previous_maximum)
             self.setGeometry(previous_geometry)
 
-        # One event-loop pass lets the stacked layout settle; a second pass
-        # handles the delayed native layout recalculation seen on macOS.
         QTimer.singleShot(0, restore_window_geometry)
         QTimer.singleShot(100, restore_window_geometry)
 
