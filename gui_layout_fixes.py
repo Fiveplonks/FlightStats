@@ -39,16 +39,10 @@ def apply_dashboard_layout_fixes():
             self.piston_fuel_card,
             self.airports_card,
         ):
-            # Cards must be able to contract slightly when the user makes the
-            # window shorter. A fixed 105 px height caused their contents to
-            # overflow/overlap when the dashboard was resized vertically.
             card.setMinimumHeight(88)
             card.setMaximumHeight(105)
             card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-        # Keep the graph large enough for comfortable reading, but allow it to
-        # contract with the rest of the dashboard instead of forcing cards to
-        # overlap when the available window height is reduced.
         self.graph_frame.setMinimumHeight(220)
         self.graph_frame.setMaximumHeight(275)
         self.flight_time_chart.setMinimumHeight(180)
@@ -77,6 +71,7 @@ def apply_dashboard_layout_fixes():
     DashboardPage._layout_fixes_applied = True
 
     original_main_window_init = MainWindow.__init__
+    original_switch_page = MainWindow.switch_page
 
     def patched_main_window_init(self):
         original_main_window_init(self)
@@ -98,12 +93,6 @@ def apply_dashboard_layout_fixes():
         self.pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.centralWidget().setMinimumSize(0, 0)
 
-        # Keep the normal window inside the usable screen rectangle. The
-        # original MainWindow data_loaded method is intentionally NOT replaced
-        # here: PySide6 uses the original QObject method metadata when routing
-        # the worker's finished signal back to the GUI thread. Replacing it
-        # dynamically turns it into a plain Python callable and can cause
-        # QWidget creation to happen on the worker thread on macOS.
         screen = QApplication.primaryScreen()
         self._startup_available_geometry = (
             screen.availableGeometry() if screen is not None else None
@@ -118,5 +107,34 @@ def apply_dashboard_layout_fixes():
                 lambda: self.setGeometry(available),
             )
 
+    def patched_switch_page(self, index):
+        """Switch pages without allowing page size hints to resize the window."""
+        if index == self.pages.currentIndex():
+            return
+
+        preserve_geometry = (
+            not self.isMaximized()
+            and not self.isFullScreen()
+        )
+        previous_geometry = self.geometry() if preserve_geometry else None
+
+        original_switch_page(self, index)
+
+        if previous_geometry is not None:
+            # Changing the stacked page can cause Qt to recalculate the
+            # top-level window size from the new page's size hint. Restore
+            # the user's chosen geometry after that layout pass. This is
+            # particularly important on macOS, where the available screen
+            # geometry excludes the Dock.
+            QTimer.singleShot(
+                0,
+                lambda: self.setGeometry(previous_geometry),
+            )
+            QTimer.singleShot(
+                50,
+                lambda: self.setGeometry(previous_geometry),
+            )
+
     MainWindow.__init__ = patched_main_window_init
+    MainWindow.switch_page = patched_switch_page
     MainWindow._layout_fixes_applied = True
