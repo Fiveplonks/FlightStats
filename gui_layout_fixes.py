@@ -1,7 +1,7 @@
 """Runtime layout safeguards for the cross-platform FlightStats dashboard."""
 
 from PySide6.QtCore import QTimer, QSize
-from PySide6.QtWidgets import QSizePolicy
+from PySide6.QtWidgets import QSizePolicy, QApplication
 
 
 def apply_dashboard_layout_fixes():
@@ -71,6 +71,7 @@ def apply_dashboard_layout_fixes():
     DashboardPage._layout_fixes_applied = True
 
     original_main_window_init = MainWindow.__init__
+    original_data_loaded = MainWindow.data_loaded
 
     def patched_main_window_init(self):
         original_main_window_init(self)
@@ -92,9 +93,36 @@ def apply_dashboard_layout_fixes():
         self.pages.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.centralWidget().setMinimumSize(0, 0)
 
-        # Native maximization is the correct way to occupy the usable screen
-        # on macOS: it respects the Dock/menu-bar exclusion automatically.
-        QTimer.singleShot(0, self.showMaximized)
+        # Keep the normal window inside the usable screen rectangle while the
+        # asynchronous logbook load changes the Dashboard's visible content.
+        # Without this cap, newly populated cards can increase the top-level
+        # window size after startup and push the lower edge into the macOS Dock.
+        screen = QApplication.primaryScreen()
+        self._startup_available_geometry = (
+            screen.availableGeometry() if screen is not None else None
+        )
+
+        if self._startup_available_geometry is not None:
+            available = self._startup_available_geometry
+            self.setGeometry(available)
+            self.setMaximumSize(available.size())
+
+            QTimer.singleShot(
+                0,
+                lambda: self.setGeometry(available),
+            )
+
+    def patched_data_loaded(self, data):
+        original_data_loaded(self, data)
+
+        # Reassert the usable-screen geometry after all Dashboard cards/pages
+        # have been populated. The maximum-size cap remains in place so later
+        # layout recalculations cannot grow the window into the Dock.
+        available = getattr(self, "_startup_available_geometry", None)
+        if available is not None:
+            self.setGeometry(available)
+            self.setMaximumSize(available.size())
 
     MainWindow.__init__ = patched_main_window_init
+    MainWindow.data_loaded = patched_data_loaded
     MainWindow._layout_fixes_applied = True
